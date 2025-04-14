@@ -5,12 +5,18 @@ on:
     branches:
       - main  # メインブランチにプッシュされたときに実行
 
+# GitHub Actionsに必要な権限を設定
+permissions:
+  contents: write
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 0  # 全履歴をフェッチ
 
       - name: Setup Node.js
         uses: actions/setup-node@v3
@@ -29,3 +35,4 @@ jobs:
           folder: build  # デプロイするフォルダ
           branch: gh-pages  # デプロイ先のブランチ
           clean: true  # デプロイ前に既存のファイルをクリーン
+          token: ${{ secrets.GITHUB_TOKEN }}  # GitHub Tokenを使用

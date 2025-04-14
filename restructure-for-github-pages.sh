@@ -21,12 +21,18 @@ on:
     branches:
       - main
 
+# GitHub Actionsに必要な権限を設定
+permissions:
+  contents: write
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 0  # 全履歴をフェッチ
       
       # docsディレクトリは既にリポジトリのルートにあるため、
       # 追加の処理は必要ありません
@@ -70,12 +76,18 @@ on:
     branches:
       - main
 
+# GitHub Actionsに必要な権限を設定
+permissions:
+  contents: write
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 0  # 全履歴をフェッチ
       
       # ルートディレクトリは既にフロントエンドファイルを含んでいるため、
       # 追加の処理は必要ありません
@@ -97,12 +109,18 @@ on:
     branches:
       - main
 
+# GitHub Actionsに必要な権限を設定
+permissions:
+  contents: write
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 0  # 全履歴をフェッチ
 
       - name: Setup Node.js
         uses: actions/setup-node@v3
@@ -121,6 +139,7 @@ jobs:
           folder: build
           branch: gh-pages
           clean: true
+          token: \${{ secrets.GITHUB_TOKEN }}  # GitHub Tokenを使用
 EOF
   
   echo "完了！GitHub Pagesの設定で、Source: Deploy from a branch, Branch: gh-pages, Folder: / (root) を選択してください。"
