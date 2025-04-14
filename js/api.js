@@ -11,7 +11,7 @@ const STORAGE_KEY = 'vqa_annotations';
 const SAMPLE_DATA_KEY = 'vqa_sample_data';
 
 // Sample data URL - replace with your actual data source
-const SAMPLE_DATA_URL = 'assets/sample_data.json';
+const SAMPLE_DATA_URL = 'assets/captions_v1.json';
 
 /**
  * Load annotation tasks
