@@ -1,0 +1,164 @@
+[
+  {
+    "url": "https://pannellum.org/images/cerro-toco-0.jpg",
+    "context": "A panoramic view of a mountainous landscape with clear blue sky. The terrain is arid and rocky, with distant peaks visible on the horizon.",
+    "generated_qa_pairs_by_attribute": {
+      "Objects & Attributes": [
+        {
+          "question": "What is the dominant color of the sky in this panorama?",
+          "answer": "The dominant color of the sky in this panorama is blue, with very few clouds visible.",
+          "attribute": "Objects & Attributes",
+          "local_or_sum": "specific",
+          "ex_or_im": "explicit"
+        },
+        {
+          "question": "What type of terrain is shown in this panoramic image?",
+          "answer": "The panoramic image shows an arid, rocky terrain with mountains and desert-like features.",
+          "attribute": "Objects & Attributes",
+          "local_or_sum": "specific",
+          "ex_or_im": "explicit"
+        }
+      ],
+      "Spatial Relationships": [
+        {
+          "question": "How are the mountains positioned relative to the viewer in this panorama?",
+          "answer": "The mountains are positioned around the viewer in a 360-degree view, with some peaks appearing closer and others visible on the distant horizon.",
+          "attribute": "Spatial Relationships",
+          "local_or_sum": "specific",
+          "ex_or_im": "implicit"
+        },
+        {
+          "question": "What is the relationship between the rocky terrain and the mountains in the distance?",
+          "answer": "The rocky terrain forms the foreground of the panorama and gradually transitions into the mountains in the distance, creating a sense of depth and scale.",
+          "attribute": "Spatial Relationships",
+          "local_or_sum": "specific",
+          "ex_or_im": "implicit"
+        }
+      ],
+      "View / Scene": [
+        {
+          "question": "What time of day does this panorama appear to be taken?",
+          "answer": "The panorama appears to be taken during daytime, likely in the middle of the day based on the bright lighting and clear visibility.",
+          "attribute": "View / Scene",
+          "local_or_sum": "general",
+          "ex_or_im": "explicit"
+        },
+        {
+          "question": "Is this an indoor or outdoor scene?",
+          "answer": "This is an outdoor scene showing a natural landscape with mountains and sky.",
+          "attribute": "View / Scene",
+          "local_or_sum": "general",
+          "ex_or_im": "explicit"
+        }
+      ]
+    }
+  },
+  {
+    "url": "https://pannellum.org/images/cerro-toco-1.jpg",
+    "context": "A 360-degree panorama of a desert landscape with mountains in the background. The ground is covered with reddish-brown soil and sparse vegetation.",
+    "generated_qa_pairs_by_attribute": {
+      "Objects & Attributes": [
+        {
+          "question": "What color is the soil in this panoramic image?",
+          "answer": "The soil in this panoramic image is reddish-brown in color.",
+          "attribute": "Objects & Attributes",
+          "local_or_sum": "specific",
+          "ex_or_im": "explicit"
+        },
+        {
+          "question": "How would you describe the vegetation in this landscape?",
+          "answer": "The vegetation in this landscape is sparse, with only a few small plants or shrubs visible across the desert terrain.",
+          "attribute": "Objects & Attributes",
+          "local_or_sum": "specific",
+          "ex_or_im": "explicit"
+        }
+      ],
+      "Spatial Relationships": [
+        {
+          "question": "Where are the mountains located in relation to the desert floor in this panorama?",
+          "answer": "The mountains are located in the background of the panorama, surrounding the desert floor in a 360-degree view.",
+          "attribute": "Spatial Relationships",
+          "local_or_sum": "specific",
+          "ex_or_im": "implicit"
+        },
+        {
+          "question": "How does the landscape change as you look around the 360-degree panorama?",
+          "answer": "As you look around the 360-degree panorama, the landscape maintains a consistent desert character, but the mountain profiles change, with some areas showing higher peaks and others showing more distant mountain ranges.",
+          "attribute": "Spatial Relationships",
+          "local_or_sum": "specific",
+          "ex_or_im": "implicit"
+        }
+      ],
+      "View / Scene": [
+        {
+          "question": "What type of climate is depicted in this panoramic scene?",
+          "answer": "The panoramic scene depicts an arid or desert climate, characterized by the dry landscape, sparse vegetation, and clear skies.",
+          "attribute": "View / Scene",
+          "local_or_sum": "general",
+          "ex_or_im": "explicit"
+        },
+        {
+          "question": "Does this panorama show any signs of human presence or infrastructure?",
+          "answer": "No, this panorama does not show any obvious signs of human presence or infrastructure. It appears to be an untouched natural landscape.",
+          "attribute": "View / Scene",
+          "local_or_sum": "general",
+          "ex_or_im": "explicit"
+        }
+      ]
+    }
+  },
+  {
+    "url": "https://pannellum.org/images/cerro-toco-2.jpg",
+    "context": "A panoramic view of a mountain range with snow-capped peaks. The foreground shows rocky terrain with some vegetation, and the sky has scattered clouds.",
+    "generated_qa_pairs_by_attribute": {
+      "Objects & Attributes": [
+        {
+          "question": "What can be seen on the tops of some mountains in this panorama?",
+          "answer": "Snow can be seen on the tops of some mountains in this panorama, creating snow-capped peaks.",
+          "attribute": "Objects & Attributes",
+          "local_or_sum": "specific",
+          "ex_or_im": "explicit"
+        },
+        {
+          "question": "What type of vegetation is visible in the foreground of this panoramic image?",
+          "answer": "The foreground shows sparse, low-lying vegetation typical of high-altitude or arid mountain environments, with small shrubs and grasses scattered across the rocky terrain.",
+          "attribute": "Objects & Attributes",
+          "local_or_sum": "specific",
+          "ex_or_im": "explicit"
+        }
+      ],
+      "Spatial Relationships": [
+        {
+          "question": "How are the clouds distributed across the sky in this panorama?",
+          "answer": "The clouds are scattered across the sky in the panorama, not forming a continuous cover but rather appearing as separate formations with clear sky visible between them.",
+          "attribute": "Spatial Relationships",
+          "local_or_sum": "specific",
+          "ex_or_im": "implicit"
+        },
+        {
+          "question": "What is the relationship between the rocky terrain and the snow-capped mountains in this panorama?",
+          "answer": "The rocky terrain forms the foreground and middle ground of the panorama, gradually rising into the snow-capped mountains in the background, showing the transition from lower to higher elevations.",
+          "attribute": "Spatial Relationships",
+          "local_or_sum": "specific",
+          "ex_or_im": "implicit"
+        }
+      ],
+      "View / Scene": [
+        {
+          "question": "What season does this panoramic scene most likely depict?",
+          "answer": "The panoramic scene most likely depicts late spring or early summer, as evidenced by the snow remaining only on the mountain peaks while the lower terrain is clear and showing some vegetation.",
+          "attribute": "View / Scene",
+          "local_or_sum": "general",
+          "ex_or_im": "explicit"
+        },
+        {
+          "question": "At what approximate elevation was this panorama likely taken?",
+          "answer": "This panorama was likely taken at a high elevation, probably in a mountainous region above the tree line but below the snow line, as indicated by the rocky terrain with sparse vegetation and the view of snow-capped peaks.",
+          "attribute": "View / Scene",
+          "local_or_sum": "general",
+          "ex_or_im": "explicit"
+        }
+      ]
+    }
+  }
+]

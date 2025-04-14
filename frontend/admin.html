@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VQA Panorama Annotation - Admin Dashboard</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.css">
+  <link rel="stylesheet" href="css/styles.css">
+  <style>
+    .admin-card {
+      transition: all 0.3s ease;
+    }
+    .admin-card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+    }
+    #modal-panorama {
+      width: 100%;
+      height: 300px;
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+      <div class="container">
+        <a class="navbar-brand" href="#">VQA Admin Dashboard</a>
+        <div class="navbar-nav ms-auto">
+          <a class="nav-link" href="index.html">Annotation Interface</a>
+          <span class="nav-item nav-link" id="username-display"></span>
+          <a class="nav-link" href="#" id="logout-btn">Logout</a>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Main content -->
+    <div class="container mt-4">
+      <div class="row">
+        <div class="col-12">
+          <div class="card mb-4">
+            <div class="card-header">
+              <h5 class="mb-0">Annotation Progress</h5>
+            </div>
+            <div class="card-body">
+              <div class="row">
+                <div class="col-md-4">
+                  <div class="card text-white bg-primary mb-3 admin-card">
+                    <div class="card-body">
+                      <h5 class="card-title">Total Images</h5>
+                      <p class="card-text display-4" id="total-images">0</p>
+                    </div>
+                  </div>
+                </div>
+                <div class="col-md-4">
+                  <div class="card text-white bg-success mb-3 admin-card">
+                    <div class="card-body">
+                      <h5 class="card-title">Completed</h5>
+                      <p class="card-text display-4" id="completed-images">0</p>
+                    </div>
+                  </div>
+                </div>
+                <div class="col-md-4">
+                  <div class="card text-white bg-warning mb-3 admin-card">
+                    <div class="card-body">
+                      <h5 class="card-title">In Progress</h5>
+                      <p class="card-text display-4" id="in-progress-images">0</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="col-12">
+          <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+              <h5 class="mb-0">Annotation Results</h5>
+              <div>
+                <button id="export-btn" class="btn btn-success">Export Results</button>
+                <button id="refresh-btn" class="btn btn-primary ms-2">Refresh Data</button>
+              </div>
+            </div>
+            <div class="card-body">
+              <div class="table-responsive">
+                <table class="table table-striped">
+                  <thead>
+                    <tr>
+                      <th>Image</th>
+                      <th>Caption</th>
+                      <th>Annotator</th>
+                      <th>Questions</th>
+                      <th>Completed</th>
+                      <th>Last Updated</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="results-table-body">
+                    <!-- Results will be loaded dynamically -->
+                  </tbody>
+                </table>
+              </div>
+              <div id="pagination" class="d-flex justify-content-center mt-4">
+                <!-- Pagination will be generated dynamically -->
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- View Annotation Modal -->
+  <div class="modal fade" id="view-annotation-modal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Annotation Details</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div id="modal-panorama"></div>
+          <div class="mt-3">
+            <h6>Caption:</h6>
+            <p id="modal-caption"></p>
+          </div>
+          <div class="mt-3">
+            <h6>Annotations:</h6>
+            <div id="modal-annotations" class="accordion"></div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Login modal -->
+  <div class="modal fade" id="login-modal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Admin Login Required</h5>
+        </div>
+        <div class="modal-body">
+          <form id="login-form">
+            <div class="mb-3">
+              <label for="username" class="form-label">Username</label>
+              <input type="text" class="form-control" id="username" required>
+            </div>
+            <div class="mb-3">
+              <label for="password" class="form-label">Password</label>
+              <input type="password" class="form-control" id="password" required>
+            </div>
+            <div id="login-error" class="alert alert-danger d-none"></div>
+            <button type="submit" class="btn btn-primary w-100">Login</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/api.js"></script>
+  <script>
+    // Admin dashboard specific JavaScript
+    let currentPage = 1;
+    let totalPages = 1;
+    let modalViewer = null;
+
+    // Initialize the admin dashboard
+    async function initAdminDashboard() {
+      // Check if user is authenticated and is admin
+      if (typeof checkAuth === 'function' && !checkAuth()) {
+        return;
+      }
+      
+      // Check if user is admin
+      if (typeof isAdmin === 'function' && !isAdmin()) {
+        alert('You do not have permission to access this page.');
+        window.location.href = 'index.html';
+        return;
+      }
+      
+      try {
+        // Load dashboard data
+        await loadDashboardData();
+        await loadAnnotationResults(1);
+        
+        // Set up event listeners
+        document.getElementById('refresh-btn').addEventListener('click', refreshData);
+        document.getElementById('export-btn').addEventListener('click', exportResults);
+      } catch (error) {
+        console.error('Error initializing admin dashboard:', error);
+        alert('Failed to load admin dashboard. Please try again later.');
+      }
+    }
+
+    // Load dashboard summary data
+    async function loadDashboardData() {
+      try {
+        // In a real app, this would be a fetch to a backend API
+        const progress = await getProgress();
+        
+        // Update dashboard cards
+        document.getElementById('total-images').textContent = progress.total;
+        document.getElementById('completed-images').textContent = progress.completed;
+        document.getElementById('in-progress-images').textContent = progress.inProgress;
+      } catch (error) {
+        console.error('Error loading dashboard data:', error);
+        alert('Failed to load dashboard data. Please try again later.');
+      }
+    }
+
+    // Load annotation results with pagination
+    async function loadAnnotationResults(page) {
+      try {
+        // In a real app, this would be a fetch to a backend API
+        const annotations = await exportAnnotations();
+        
+        // Update pagination info
+        currentPage = page;
+        totalPages = Math.ceil(annotations.length / 10);
+        
+        // Paginate results
+        const startIndex = (page - 1) * 10;
+        const endIndex = startIndex + 10;
+        const paginatedAnnotations = annotations.slice(startIndex, endIndex);
+        
+        // Clear existing table rows
+        const tableBody = document.getElementById('results-table-body');
+        tableBody.innerHTML = '';
+        
+        // Add new rows
+        paginatedAnnotations.forEach(annotation => {
+          const row = document.createElement('tr');
+          
+          // Image thumbnail
+          const imgCell = document.createElement('td');
+          const img = document.createElement('img');
+          img.src = annotation.imageUrl;
+          img.alt = 'Thumbnail';
+          img.className = 'img-thumbnail';
+          img.style.width = '100px';
+          imgCell.appendChild(img);
+          
+          // Caption
+          const captionCell = document.createElement('td');
+          captionCell.textContent = annotation.caption ? 
+            (annotation.caption.substring(0, 50) + (annotation.caption.length > 50 ? '...' : '')) : 
+            'No caption';
+          
+          // Annotator
+          const annotatorCell = document.createElement('td');
+          annotatorCell.textContent = getUsername() || 'Anonymous';
+          
+          // Questions count
+          const questionsCell = document.createElement('td');
+          questionsCell.textContent = annotation.answers ? annotation.answers.length : 0;
+          
+          // Completion status
+          const completedCell = document.createElement('td');
+          const completedBadge = document.createElement('span');
+          completedBadge.className = `badge ${annotation.isComplete ? 'bg-success' : 'bg-warning'}`;
+          completedBadge.textContent = annotation.isComplete ? 'Completed' : 'In Progress';
+          completedCell.appendChild(completedBadge);
+          
+          // Last updated
+          const updatedCell = document.createElement('td');
+          updatedCell.textContent = annotation.lastUpdated ? 
+            new Date(annotation.lastUpdated).toLocaleString() : 
+            'Unknown';
+          
+          // Actions
+          const actionsCell = document.createElement('td');
+          const viewBtn = document.createElement('button');
+          viewBtn.className = 'btn btn-sm btn-primary';
+          viewBtn.textContent = 'View';
+          viewBtn.addEventListener('click', () => viewAnnotation(annotation));
+          actionsCell.appendChild(viewBtn);
+          
+          // Add cells to row
+          row.appendChild(imgCell);
+          row.appendChild(captionCell);
+          row.appendChild(annotatorCell);
+          row.appendChild(questionsCell);
+          row.appendChild(completedCell);
+          row.appendChild(updatedCell);
+          row.appendChild(actionsCell);
+          
+          // Add row to table
+          tableBody.appendChild(row);
+        });
+        
+        // Update pagination
+        generatePagination();
+      } catch (error) {
+        console.error('Error loading annotation results:', error);
+        alert('Failed to load annotation results. Please try again later.');
+      }
+    }
+
+    // Generate pagination controls
+    function generatePagination() {
+      const paginationContainer = document.getElementById('pagination');
+      paginationContainer.innerHTML = '';
+      
+      if (totalPages <= 1) return;
+      
+      const pagination = document.createElement('nav');
+      const paginationList = document.createElement('ul');
+      paginationList.className = 'pagination';
+      
+      // Previous button
+      const prevItem = document.createElement('li');
+      prevItem.className = `page-item ${currentPage === 1 ? 'disabled' : ''}`;
+      
+      const prevLink = document.createElement('a');
+      prevLink.className = 'page-link';
+      prevLink.href = '#';
+      prevLink.textContent = 'Previous';
+      prevLink.addEventListener('click', (e) => {
+        e.preventDefault();
+        if (currentPage > 1) {
+          loadAnnotationResults(currentPage - 1);
+        }
+      });
+      
+      prevItem.appendChild(prevLink);
+      paginationList.appendChild(prevItem);
+      
+      // Page numbers
+      const startPage = Math.max(1, currentPage - 2);
+      const endPage = Math.min(totalPages, startPage + 4);
+      
+      for (let i = startPage; i <= endPage; i++) {
+        const pageItem = document.createElement('li');
+        pageItem.className = `page-item ${i === currentPage ? 'active' : ''}`;
+        
+        const pageLink = document.createElement('a');
+        pageLink.className = 'page-link';
+        pageLink.href = '#';
+        pageLink.textContent = i;
+        pageLink.addEventListener('click', (e) => {
+          e.preventDefault();
+          loadAnnotationResults(i);
+        });
+        
+        pageItem.appendChild(pageLink);
+        paginationList.appendChild(pageItem);
+      }
+      
+      // Next button
+      const nextItem = document.createElement('li');
+      nextItem.className = `page-item ${currentPage === totalPages ? 'disabled' : ''}`;
+      
+      const nextLink = document.createElement('a');
+      nextLink.className = 'page-link';
+      nextLink.href = '#';
+      nextLink.textContent = 'Next';
+      nextLink.addEventListener('click', (e) => {
+        e.preventDefault();
+        if (currentPage < totalPages) {
+          loadAnnotationResults(currentPage + 1);
+        }
+      });
+      
+      nextItem.appendChild(nextLink);
+      paginationList.appendChild(nextItem);
+      
+      pagination.appendChild(paginationList);
+      paginationContainer.appendChild(pagination);
+    }
+
+    // View annotation details
+    function viewAnnotation(annotation) {
+      const modal = new bootstrap.Modal(document.getElementById('view-annotation-modal'));
+      
+      // Set caption
+      document.getElementById('modal-caption').textContent = annotation.caption || 'No caption available';
+      
+      // Initialize panorama viewer
+      if (modalViewer) {
+        modalViewer.destroy();
+        modalViewer = null;
+      }
+      
+      // Load the base64 loading image
+      fetch('assets/loading.txt')
+        .then(response => response.text())
+        .then(base64Data => {
+          modalViewer = pannellum.viewer('modal-panorama', {
+            type: 'equirectangular',
+            panorama: annotation.imageUrl,
+            autoLoad: true,
+            compass: true,
+            preview: base64Data
+          });
+        })
+        .catch(error => {
+          console.error('Error loading loading image:', error);
+          
+          modalViewer = pannellum.viewer('modal-panorama', {
+            type: 'equirectangular',
+            panorama: annotation.imageUrl,
+            autoLoad: true,
+            compass: true
+          });
+        });
+      
+      // Display annotations
+      const annotationsContainer = document.getElementById('modal-annotations');
+      annotationsContainer.innerHTML = '';
+      
+      if (!annotation.answers || annotation.answers.length === 0) {
+        annotationsContainer.innerHTML = '<p class="text-muted">No annotations available.</p>';
+        modal.show();
+        return;
+      }
+      
+      // Group answers by attribute
+      const answersByAttribute = {};
+      annotation.answers.forEach(answer => {
+        if (!answersByAttribute[answer.attribute]) {
+          answersByAttribute[answer.attribute] = [];
+        }
+        answersByAttribute[answer.attribute].push(answer);
+      });
+      
+      // Create accordion for each attribute
+      Object.keys(answersByAttribute).forEach((attribute, index) => {
+        const accordionItem = document.createElement('div');
+        accordionItem.className = 'accordion-item';
+        
+        const accordionHeader = document.createElement('h2');
+        accordionHeader.className = 'accordion-header';
+        accordionHeader.id = `heading-${index}`;
+        
+        const accordionButton = document.createElement('button');
+        accordionButton.className = 'accordion-button';
+        accordionButton.type = 'button';
+        accordionButton.setAttribute('data-bs-toggle', 'collapse');
+        accordionButton.setAttribute('data-bs-target', `#collapse-${index}`);
+        accordionButton.setAttribute('aria-expanded', 'true');
+        accordionButton.setAttribute('aria-controls', `collapse-${index}`);
+        accordionButton.textContent = attribute;
+        
+        accordionHeader.appendChild(accordionButton);
+        
+        const accordionCollapse = document.createElement('div');
+        accordionCollapse.id = `collapse-${index}`;
+        accordionCollapse.className = 'accordion-collapse collapse show';
+        accordionCollapse.setAttribute('aria-labelledby', `heading-${index}`);
+        
+        const accordionBody = document.createElement('div');
+        accordionBody.className = 'accordion-body';
+        
+        // Add answers for this attribute
+        answersByAttribute[attribute].forEach(answer => {
+          const answerDiv = document.createElement('div');
+          answerDiv.className = 'mb-3 p-3 border rounded';
+          
+          const questionP = document.createElement('p');
+          questionP.className = 'fw-bold';
+          questionP.textContent = `Q: ${answer.question}`;
+          
+          const answerP = document.createElement('p');
+          answerP.textContent = `A: ${answer.answer}`;
+          
+          const confidenceP = document.createElement('p');
+          confidenceP.className = 'text-muted';
+          confidenceP.textContent = `Confidence: ${answer.confidence}/5`;
+          
+          answerDiv.appendChild(questionP);
+          answerDiv.appendChild(answerP);
+          answerDiv.appendChild(confidenceP);
+          
+          accordionBody.appendChild(answerDiv);
+        });
+        
+        accordionCollapse.appendChild(accordionBody);
+        
+        accordionItem.appendChild(accordionHeader);
+        accordionItem.appendChild(accordionCollapse);
+        
+        annotationsContainer.appendChild(accordionItem);
+      });
+      
+      modal.show();
+    }
+
+    // Refresh dashboard data
+    async function refreshData() {
+      await loadDashboardData();
+      await loadAnnotationResults(currentPage);
+    }
+
+    // Export results as JSON
+    async function exportResults() {
+      try {
+        const annotations = await exportAnnotations();
+        
+        // Create download link
+        const blob = new Blob([JSON.stringify(annotations, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `vqa_annotations_${new Date().toISOString().split('T')[0]}.json`;
+        document.body.appendChild(a);
+        a.click();
+        
+        // Clean up
+        setTimeout(() => {
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+        }, 0);
+      } catch (error) {
+        console.error('Error exporting results:', error);
+        alert('Failed to export results. Please try again later.');
+      }
+    }
+
+    // Initialize on page load
+    document.addEventListener('DOMContentLoaded', initAdminDashboard);
+  </script>
+</body>
+</html>
