@@ -44,3 +44,10 @@ Thumbs.db
 frontend/assets/annotation_data.json
 temp_output.json
 *.log
+
+# Firebase
+frontend/js/firebase-config.js
+.env
+.env.local
+.env.development
+.env.production

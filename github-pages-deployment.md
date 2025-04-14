@@ -132,6 +132,58 @@ const API_URL = 'https://あなたのバックエンドサーバー.com/api';
 
 3. **GitHub Actionsでデータ同期**: GitHub Actionsを使用して、localStorageのデータをリポジトリに定期的にコミットする方法も考えられます。
 
-## 7. まとめ
+## 7. Firebase設定の安全な管理
 
-GitHub Pagesを使用すると、簡単にVQA Annotation Interfaceをデプロイして、URLでアクセスできるようになります。ただし、サーバーサイドの機能が制限されるため、認証やデータ保存については上記の方法を検討してください。
+パブリックリポジトリでGitHub Pagesを使用しながらFirebase設定を安全に管理するには、以下の手順を実施してください：
+
+### 7.1 Firebase APIキーのセキュリティ強化
+
+Firebase APIキー自体は完全に秘密にする必要はありませんが、以下の設定を行うことでセキュリティを強化できます：
+
+1. **Firebase Console**で、APIキーの使用を特定のドメイン（GitHub Pagesのドメイン）に制限する
+   - Firebase Console > Project Settings > API Settings > Application restrictions
+   - 「HTTP referrers (websites)」を選択し、`*.github.io/*`を追加
+
+2. **Firebase Authentication**の設定で、許可されるドメインを追加する
+   - Firebase Console > Authentication > Settings > Authorized domains
+   - `yourusername.github.io`を追加
+
+3. **Firestore**のセキュリティルールを厳格に設定する
+   ```
+   rules_version = '2';
+   service cloud.firestore {
+     match /databases/{database}/documents {
+       match /{document=**} {
+         allow read, write: if request.auth != null;
+       }
+     }
+   }
+   ```
+
+### 7.2 GitHub Secretsの設定
+
+1. リポジトリの Settings > Secrets > Actions に移動
+2. 以下の変数を追加：
+   - `FIREBASE_API_KEY`
+   - `FIREBASE_AUTH_DOMAIN`
+   - `FIREBASE_PROJECT_ID`
+   - `FIREBASE_STORAGE_BUCKET`
+   - `FIREBASE_MESSAGING_SENDER_ID`
+   - `FIREBASE_APP_ID`
+
+これらのシークレットは、GitHub Actionsワークフローで使用され、ビルド時に`firebase-config.js`ファイルを生成します。
+
+### 7.3 ローカル開発環境の設定
+
+1. `firebase-config.template.js`ファイルを`firebase-config.js`にコピー
+2. 実際のFirebase認証情報を入力
+3. `.gitignore`ファイルに`firebase-config.js`が含まれていることを確認
+
+### 7.4 Firebaseの有効化
+
+1. `index.html`と`admin.html`ファイル内のFirebase SDKとfirebase-integration.jsのコメントを解除
+2. GitHub Actionsワークフローを実行して、GitHub Pagesにデプロイ
+
+## 8. まとめ
+
+GitHub Pagesを使用すると、簡単にVQA Annotation Interfaceをデプロイして、URLでアクセスできるようになります。Firebase統合を使用することで、認証とデータ永続化の問題を解決できます。ただし、パブリックリポジトリでFirebase設定を安全に管理するために、上記の方法を実施してください。
