@@ -124,13 +124,15 @@ function initPanorama(imageUrl) {
         autoRotate: -2,
         compass: true,
         hotSpotDebug: false,
+        crossOrigin: 'anonymous', // CORSの問題を解決するために追加
         preview: base64Data
       });
       
       // Handle errors
       panoramaViewer.on('error', function(err) {
         console.error('Pannellum error:', err);
-        showMessage('Error loading panorama image. Please try again.', 'danger');
+        console.error('Failed URL:', imageUrl); // URLを表示
+        showMessage(`Error loading panorama image: ${err}. URL: ${imageUrl}`, 'danger');
       });
     })
     .catch(error => {
@@ -143,13 +145,15 @@ function initPanorama(imageUrl) {
         autoLoad: true,
         autoRotate: -2,
         compass: true,
-        hotSpotDebug: false
+        hotSpotDebug: false,
+        crossOrigin: 'anonymous' // CORSの問題を解決するために追加
       });
       
       // Handle errors
       panoramaViewer.on('error', function(err) {
         console.error('Pannellum error:', err);
-        showMessage('Error loading panorama image. Please try again.', 'danger');
+        console.error('Failed URL:', imageUrl); // URLを表示
+        showMessage(`Error loading panorama image: ${err}. URL: ${imageUrl}`, 'danger');
       });
     });
 }

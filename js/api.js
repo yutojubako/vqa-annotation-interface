@@ -19,55 +19,46 @@ const SAMPLE_DATA_URL = 'assets/captions_v1.json';
  * @returns {Promise<Array>} Array of annotation tasks
  */
 async function loadTasks(limit = 10) {
-  // Check if we have sample data
-  let sampleData = localStorage.getItem(SAMPLE_DATA_KEY);
-  
-  if (!sampleData) {
-    // If no sample data, try to load from file
-    try {
-      // In a real app, this would be a fetch to a backend API
-      // For demo purposes, we'll try to load sample data from a static file
-      const response = await fetch(SAMPLE_DATA_URL);
-      
-      if (!response.ok) {
-        // If no sample file, generate mock data
-        console.warn('No sample data found, generating mock data');
-        sampleData = JSON.stringify(generateMockData());
-      } else {
-        sampleData = await response.text();
-      }
-      
-      // Store sample data
-      localStorage.setItem(SAMPLE_DATA_KEY, sampleData);
-    } catch (error) {
-      console.error('Error loading sample data:', error);
-      // Generate mock data as fallback
-      sampleData = JSON.stringify(generateMockData());
-      localStorage.setItem(SAMPLE_DATA_KEY, sampleData);
+  try {
+    // 直接ファイルから読み込み、localStorageには保存しない
+    const response = await fetch(SAMPLE_DATA_URL);
+    
+    if (!response.ok) {
+      throw new Error('Failed to load sample data');
     }
+    
+    // JSONとして直接解析
+    const data = await response.json();
+    
+    // Get user's progress
+    const annotations = loadAnnotations();
+    const completedImageIds = annotations
+      .filter(a => a.isComplete)
+      .map(a => a.imageId);
+    
+    // Filter out completed images and limit results
+    const pendingTasks = data
+      .filter(item => !completedImageIds.includes(item.url))
+      .slice(0, limit);
+    
+    // Format tasks for the UI
+    return pendingTasks.map(item => ({
+      imageId: item.url,
+      imageUrl: item.url,
+      caption: item.context,
+      questions: formatQuestions(item)
+    }));
+  } catch (error) {
+    console.error('Error loading tasks:', error);
+    // エラー時はモックデータを使用
+    const mockData = generateMockData();
+    return mockData.slice(0, limit).map(item => ({
+      imageId: item.url,
+      imageUrl: item.url,
+      caption: item.context,
+      questions: formatQuestions(item)
+    }));
   }
-  
-  // Parse sample data
-  const data = JSON.parse(sampleData);
-  
-  // Get user's progress
-  const annotations = loadAnnotations();
-  const completedImageIds = annotations
-    .filter(a => a.isComplete)
-    .map(a => a.imageId);
-  
-  // Filter out completed images and limit results
-  const pendingTasks = data
-    .filter(item => !completedImageIds.includes(item.url))
-    .slice(0, limit);
-  
-  // Format tasks for the UI
-  return pendingTasks.map(item => ({
-    imageId: item.url,
-    imageUrl: item.url,
-    caption: item.context,
-    questions: formatQuestions(item)
-  }));
 }
 
 /**
@@ -189,28 +180,38 @@ async function getAnnotation(imageId) {
  * @returns {Promise<Object>} Progress statistics
  */
 async function getProgress() {
-  // Get existing annotations
-  const annotations = loadAnnotations();
-  
-  // Get sample data
-  const sampleData = JSON.parse(localStorage.getItem(SAMPLE_DATA_KEY) || '[]');
-  
-  // Calculate progress
-  const total = sampleData.length;
-  const completed = annotations.filter(a => a.isComplete).length;
-  const inProgress = annotations.filter(a => !a.isComplete).length;
-  
-  // In a real app, this would be a GET to a backend API
-  // Simulate async operation
-  return new Promise(resolve => {
-    setTimeout(() => {
-      resolve({
-        total,
-        completed,
-        inProgress
-      });
-    }, 300);
-  });
+  try {
+    // Get existing annotations
+    const annotations = loadAnnotations();
+    
+    // Get total from sample data file
+    let total = 0;
+    try {
+      const response = await fetch(SAMPLE_DATA_URL);
+      if (response.ok) {
+        const data = await response.json();
+        total = data.length;
+      }
+    } catch (error) {
+      console.error('Error loading sample data for progress:', error);
+      // Fallback to mock data length
+      total = 10; // Default mock data length
+    }
+    
+    // Calculate progress
+    const completed = annotations.filter(a => a.isComplete).length;
+    const inProgress = annotations.filter(a => !a.isComplete).length;
+    
+    // Return progress
+    return {
+      total,
+      completed,
+      inProgress
+    };
+  } catch (error) {
+    console.error('Error getting progress:', error);
+    return { total: 0, completed: 0, inProgress: 0 };
+  }
 }
 
 /**
