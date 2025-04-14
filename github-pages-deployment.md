@@ -2,6 +2,36 @@
 
 VQA Panorama Annotation InterfaceをGitHub Pagesでデプロイして、URLを踏んでアクセスできるようにする手順を説明します。
 
+## GitHub Pagesの制限について
+
+GitHub Pagesには以下の制限があります：
+
+> ソース ブランチのリポジトリ (/) のルートまたはソース ブランチの /docs フォルダーのいずれかを指定できます。変更がソース ブランチにプッシュされるたびに、ソース フォルダー内の変更が GitHub Pages サイトに公開されます。
+
+つまり、`/frontend`ディレクトリを直接公開することはできません。この制限に対応するために、以下の方法があります。
+
+## プロジェクト構造の再編成
+
+プロジェクトに含まれる`restructure-for-github-pages.sh`スクリプトを使用して、GitHub Pages用にプロジェクト構造を再編成できます：
+
+```bash
+./restructure-for-github-pages.sh
+```
+
+このスクリプトは以下の3つの方法を提供します：
+
+### 方法1: フロントエンドを`/docs`ディレクトリに移動
+
+フロントエンドファイルを`/docs`ディレクトリにコピーし、GitHub Pagesの設定で`/docs`フォルダーを指定します。
+
+### 方法2: フロントエンドをリポジトリのルートに移動
+
+バックエンドとその他のファイルをバックアップし、フロントエンドファイルをリポジトリのルートに移動します。
+
+### 方法3: GitHub Actionsを使用してデプロイ（推奨）
+
+現在のプロジェクト構造を維持したまま、GitHub Actionsを使用してビルド時にフロントエンドファイルを`gh-pages`ブランチにデプロイします。
+
 ## 1. GitHubリポジトリの準備
 
 1. GitHubアカウントにログインします。
@@ -20,40 +50,27 @@ git remote add origin https://github.com/あなたのユーザー名/vqa-annotat
 git push -u origin main
 ```
 
-## 2. フロントエンドのみをデプロイする場合
+## 2. GitHub Actionsを使用したデプロイ（推奨）
 
-GitHub Pagesはサーバーサイドのコードを実行できないため、フロントエンドのみをデプロイします。
+このプロジェクトには既にGitHub Actionsのワークフローファイル（`.github/workflows/deploy-to-github-pages.yml`）が含まれています。このワークフローは、`main`ブランチにプッシュされるたびに、フロントエンドファイルを`gh-pages`ブランチにデプロイします。
 
-### 方法1: `frontend`ディレクトリをルートとしてデプロイ
-
-1. リポジトリの設定ページに移動します（Settings > Pages）。
-2. Source セクションで、デプロイするブランチ（例：`main`）と、ディレクトリ（`/frontend`）を選択します。
-3. "Save"をクリックします。
-
-### 方法2: `gh-pages`ブランチを使用する
-
-1. `frontend`ディレクトリの内容だけを`gh-pages`ブランチにプッシュします：
+1. コードをGitHubにプッシュします：
 
 ```bash
-# gh-pagesブランチを作成
-git checkout -b gh-pages
-
-# frontendディレクトリの内容だけをリポジトリのルートに移動
-git rm -rf .
-git checkout main -- frontend
-mkdir temp
-mv frontend/* temp/
-mv temp/* .
-rmdir temp
-rm -rf frontend
-
-# 変更をコミットしてプッシュ
-git add .
-git commit -m "Setup GitHub Pages"
-git push origin gh-pages
+git push origin main
 ```
 
-2. リポジトリの設定ページで、Source セクションの Branch を `gh-pages` に設定します。
+2. GitHub Actionsが自動的に実行され、`gh-pages`ブランチにフロントエンドファイルがデプロイされます。
+
+3. リポジトリの設定ページ（Settings > Pages）で以下を設定します：
+   - Source: Deploy from a branch
+   - Branch: gh-pages
+   - Folder: / (root)
+
+4. 数分後、サイトが以下のURLで公開されます：
+   ```
+   https://あなたのユーザー名.github.io/vqa-annotation-interface/
+   ```
 
 ## 3. データの準備
 
