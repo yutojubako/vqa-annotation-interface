@@ -16,18 +16,30 @@
  * 7. Replace api.js with this file or modify api.js to use these functions
  */
 
-// Firebase configuration - REPLACE WITH YOUR OWN CONFIG
-const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "your-project-id.firebaseapp.com",
-  projectId: "your-project-id",
-  storageBucket: "your-project-id.appspot.com",
-  messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-  appId: "YOUR_APP_ID"
-};
+// Firebase configuration is loaded from firebase-config.js
+// This file should be included before firebase-integration.js in your HTML
+
+// Check if firebaseConfig is defined
+if (typeof firebaseConfig === 'undefined') {
+  console.error('Firebase configuration is missing. Make sure firebase-config.js is included before firebase-integration.js');
+  // Create a default empty config to prevent errors
+  firebaseConfig = {
+    apiKey: "",
+    authDomain: "",
+    projectId: "",
+    storageBucket: "",
+    messagingSenderId: "",
+    appId: ""
+  };
+}
 
 // Initialize Firebase
-firebase.initializeApp(firebaseConfig);
+try {
+  firebase.initializeApp(firebaseConfig);
+  console.log('Firebase initialized successfully');
+} catch (error) {
+  console.error('Error initializing Firebase:', error);
+}
 
 // Get Firebase services
 const auth = firebase.auth();
