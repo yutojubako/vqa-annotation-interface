@@ -251,13 +251,13 @@ function getUsername() {
 
 /**
  * Load annotation tasks
- * @param {number} limit - Maximum number of tasks to load
+ * @param {number} limit - Maximum number of tasks to load (optional)
  * @returns {Promise<Array>} Array of annotation tasks
  */
-async function loadTasks(limit = 10) {
+async function loadTasks(limit = null) {
   try {
-    // Get tasks from Firestore
-    const snapshot = await db.collection('tasks').limit(limit).get();
+    // Get tasks from Firestore without limit
+    const snapshot = await db.collection('tasks').get();
     
     // Get user's progress
     const annotationsSnapshot = await db.collection('annotations')
@@ -288,14 +288,89 @@ async function loadTasks(limit = 10) {
 }
 
 /**
+ * Find a task by ID or URL
+ * @param {string} id - Task ID or URL
+ * @returns {Promise<Object|null>} Task or null if not found
+ */
+async function findTaskById(id) {
+  try {
+    // First try to find by ID
+    let snapshot = await db.collection('tasks').where('id', '==', id).get();
+    
+    // If not found, try to find by imageId
+    if (snapshot.empty) {
+      snapshot = await db.collection('tasks').where('imageId', '==', id).get();
+    }
+    
+    // If still not found, try to find by imageUrl
+    if (snapshot.empty) {
+      snapshot = await db.collection('tasks').where('imageUrl', '==', id).get();
+    }
+    
+    // If still not found, try to find by partial URL match
+    if (snapshot.empty) {
+      snapshot = await db.collection('tasks').get();
+      let task = null;
+      snapshot.forEach(doc => {
+        const data = doc.data();
+        if (data.imageUrl && data.imageUrl.includes(id)) {
+          task = { id: doc.id, ...data };
+        }
+      });
+      if (task) return task;
+    } else {
+      // Return the first match if found
+      const doc = snapshot.docs[0];
+      return { id: doc.id, ...doc.data() };
+    }
+    
+    // If still not found, try to load from sample data
+    try {
+      const response = await fetch('assets/captions_v1.json');
+      if (!response.ok) throw new Error('Failed to load sample data');
+      
+      const data = await response.json();
+      const item = data.find(item => 
+        item.url === id || 
+        item.url.includes(id) || 
+        (item.id && item.id === id)
+      );
+      
+      if (!item) return null;
+      
+      return {
+        imageId: item.url,
+        imageUrl: item.url,
+        caption: item.context,
+        questions: formatQuestions ? formatQuestions(item) : []
+      };
+    } catch (e) {
+      console.error('Error finding task in sample data:', e);
+      return null;
+    }
+  } catch (error) {
+    console.error('Error finding task by ID:', error);
+    return null;
+  }
+}
+
+/**
  * Save annotation
  * @param {Object} annotation - Annotation to save
  * @returns {Promise<Object>} Saved annotation
  */
 async function saveAnnotation(annotation) {
   try {
+    // Check if user is authenticated
+    if (!currentUser || !currentUser.id) {
+      console.error('No user ID available for saving annotation');
+      throw new Error('User not authenticated');
+    }
+    
     // Add user ID
     annotation.userId = currentUser.id;
+    console.log('Saving annotation for user:', currentUser.id);
+    console.log('Annotation data:', annotation);
     
     // Check if annotation already exists
     const querySnapshot = await db.collection('annotations')
@@ -303,18 +378,26 @@ async function saveAnnotation(annotation) {
       .where('userId', '==', currentUser.id)
       .get();
     
+    let result;
+    
     if (!querySnapshot.empty) {
       // Update existing annotation
       const docId = querySnapshot.docs[0].id;
       annotation.lastUpdated = new Date();
+      console.log('Updating existing annotation with ID:', docId);
       await db.collection('annotations').doc(docId).update(annotation);
-      return { id: docId, ...annotation };
+      result = { id: docId, ...annotation };
     } else {
       // Create new annotation
       annotation.lastUpdated = new Date();
+      console.log('Creating new annotation');
       const docRef = await db.collection('annotations').add(annotation);
-      return { id: docRef.id, ...annotation };
+      console.log('New annotation created with ID:', docRef.id);
+      result = { id: docRef.id, ...annotation };
     }
+    
+    console.log('Annotation saved successfully');
+    return result;
   } catch (error) {
     console.error('Error saving annotation:', error);
     
@@ -578,6 +661,21 @@ document.addEventListener('DOMContentLoaded', () => {
   // Set up event listeners
   document.getElementById('login-form').addEventListener('submit', handleLogin);
   document.getElementById('logout-btn').addEventListener('click', handleLogout);
+  
+  // ジャンプボタンのイベントリスナーを追加
+  const jumpBtn = document.getElementById('jump-btn');
+  if (jumpBtn) {
+    jumpBtn.addEventListener('click', () => {
+      const sampleId = document.getElementById('sample-id-input').value.trim();
+      if (sampleId) {
+        if (typeof jumpToSample === 'function') {
+          jumpToSample(sampleId);
+        } else {
+          console.error('jumpToSample function not found');
+        }
+      }
+    });
+  }
   
   // Initialize Firebase auth
   initFirebaseAuth();
