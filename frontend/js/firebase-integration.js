@@ -269,11 +269,51 @@ async function loadTasks(limit = null) {
       });
     });
     
+    // If no tasks found in Firestore, try to load from sample data
+    if (tasks.length === 0) {
+      try {
+        const response = await fetch('assets/captions_v1.json');
+        if (!response.ok) throw new Error('Failed to load sample data');
+        
+        const data = await response.json();
+        
+        // Format tasks for the UI
+        return data.map(item => ({
+          imageId: item.url,
+          imageUrl: item.url,
+          caption: item.context,
+          questions: formatQuestions(item)
+        }));
+      } catch (e) {
+        console.error('Error loading sample data:', e);
+        // Fall back to mock data if sample data loading fails
+        return generateMockData();
+      }
+    }
+    
     return tasks;
   } catch (error) {
-    console.error('Error loading tasks:', error);
-    // Fallback to mock data
-    return generateMockData();
+    console.error('Error loading tasks from Firestore:', error);
+    
+    // Try to load from sample data
+    try {
+      const response = await fetch('assets/captions_v1.json');
+      if (!response.ok) throw new Error('Failed to load sample data');
+      
+      const data = await response.json();
+      
+      // Format tasks for the UI
+      return data.map(item => ({
+        imageId: item.url,
+        imageUrl: item.url,
+        caption: item.context,
+        questions: formatQuestions(item)
+      }));
+    } catch (e) {
+      console.error('Error loading sample data:', e);
+      // Fall back to mock data if sample data loading fails
+      return generateMockData();
+    }
   }
 }
 
@@ -369,8 +409,27 @@ async function saveAnnotation(annotation) {
   try {
     // Check if user is authenticated
     if (!currentUser || !currentUser.id) {
-      console.error('No user ID available for saving annotation');
-      throw new Error('User not authenticated');
+      console.warn('User not authenticated, saving to localStorage only');
+      
+      // Fallback to localStorage
+      const annotations = loadAnnotations();
+      const index = annotations.findIndex(a => a.imageId === annotation.imageId);
+      
+      if (index >= 0) {
+        annotations[index] = {
+          ...annotations[index],
+          ...annotation,
+          lastUpdated: new Date().toISOString()
+        };
+      } else {
+        annotations.push({
+          ...annotation,
+          lastUpdated: new Date().toISOString()
+        });
+      }
+      
+      localStorage.setItem('vqa_annotations', JSON.stringify(annotations));
+      return annotation;
     }
     
     // Add user ID
@@ -436,6 +495,12 @@ async function saveAnnotation(annotation) {
  */
 async function getAnnotation(imageId) {
   try {
+    // Check if user is authenticated
+    if (!currentUser) {
+      console.warn('User not authenticated, returning null annotation');
+      return null;
+    }
+    
     const querySnapshot = await db.collection('annotations')
       .where('imageId', '==', imageId)
       .where('userId', '==', currentUser.id)
@@ -462,9 +527,47 @@ async function getAnnotation(imageId) {
  */
 async function getProgress() {
   try {
-    // Get total tasks
-    const tasksSnapshot = await db.collection('tasks').get();
-    const total = tasksSnapshot.size;
+    // Get total tasks from Firestore
+    let total = 0;
+    try {
+      const tasksSnapshot = await db.collection('tasks').get();
+      total = tasksSnapshot.size;
+      
+      // If no tasks found in Firestore, try to load from sample data
+      if (total === 0) {
+        try {
+          const response = await fetch('assets/captions_v1.json');
+          if (response.ok) {
+            const data = await response.json();
+            total = data.length;
+          }
+        } catch (e) {
+          console.error('Error loading sample data for progress:', e);
+          // Use mock data length as fallback
+          total = 10;
+        }
+      }
+    } catch (e) {
+      console.error('Error getting tasks for progress:', e);
+      // Try to load from sample data
+      try {
+        const response = await fetch('assets/captions_v1.json');
+        if (response.ok) {
+          const data = await response.json();
+          total = data.length;
+        }
+      } catch (e) {
+        console.error('Error loading sample data for progress:', e);
+        // Use mock data length as fallback
+        total = 10;
+      }
+    }
+    
+    // Check if user is authenticated
+    if (!currentUser) {
+      console.warn('User not authenticated, returning progress with total only');
+      return { total, completed: 0, inProgress: 0 };
+    }
     
     // Get completed annotations
     const completedSnapshot = await db.collection('annotations')
@@ -489,8 +592,24 @@ async function getProgress() {
     const completedCount = annotations.filter(a => a.isComplete).length;
     const inProgressCount = annotations.filter(a => !a.isComplete).length;
     
+    // Try to get total from sample data
+    let total = completedCount + inProgressCount;
+    try {
+      const response = await fetch('assets/captions_v1.json');
+      if (response.ok) {
+        const data = await response.json();
+        total = data.length;
+      }
+    } catch (e) {
+      console.error('Error loading sample data for progress fallback:', e);
+      // If we can't get the total from sample data, use mock data length
+      if (total === 0) {
+        total = 10;
+      }
+    }
+    
     return {
-      total: completedCount + inProgressCount,
+      total,
       completed: completedCount,
       inProgress: inProgressCount
     };
@@ -503,6 +622,12 @@ async function getProgress() {
  */
 async function exportAnnotations() {
   try {
+    // Check if user is authenticated
+    if (!currentUser) {
+      console.warn('User not authenticated, returning annotations from localStorage');
+      return loadAnnotations();
+    }
+    
     // Only allow admins to export all annotations
     if (!currentUser.isAdmin) {
       // For non-admins, only export their own annotations
@@ -541,6 +666,18 @@ async function exportAnnotations() {
  */
 async function getDashboardData() {
   try {
+    // Check if user is authenticated
+    if (!currentUser) {
+      console.warn('User not authenticated, returning default dashboard data');
+      return {
+        totalImages: 0,
+        completedImages: 0,
+        inProgressImages: 0,
+        userCount: 0,
+        activeUserCount: 0
+      };
+    }
+    
     // Only allow admins
     if (!currentUser.isAdmin) {
       throw new Error('Unauthorized');
@@ -600,6 +737,51 @@ async function getDashboardData() {
 }
 
 // Helper functions
+
+/**
+ * Format questions from sample data
+ * @param {Object} item - Sample data item
+ * @returns {Array} Formatted questions
+ */
+function formatQuestions(item) {
+  // Check if we have questions by attribute
+  if (item.generated_qa_pairs_by_attribute) {
+    // Flatten questions from all attributes
+    return Object.entries(item.generated_qa_pairs_by_attribute)
+      .flatMap(([attribute, questions]) => 
+        questions.map(q => ({
+          id: generateQuestionId(q.question),
+          question: q.question,
+          attribute: attribute,
+          suggestedAnswer: q.answer
+        }))
+      );
+  } else if (item.generated_qa_pairs) {
+    // Use flat list of questions
+    return item.generated_qa_pairs.map(q => ({
+      id: generateQuestionId(q.question),
+      question: q.question,
+      attribute: q.attribute || 'General',
+      suggestedAnswer: q.answer
+    }));
+  } else {
+    // No questions, generate mock ones
+    return generateMockQuestions();
+  }
+}
+
+/**
+ * Generate a unique ID for a question
+ * @param {string} question - Question text
+ * @returns {string} Unique ID
+ */
+function generateQuestionId(question) {
+  // Create a simple hash from the question text
+  return question
+    .substring(0, 20)
+    .replace(/\W+/g, '_')
+    .toLowerCase() + '_' + Math.random().toString(36).substring(2, 7);
+}
 
 /**
  * Load saved annotations from localStorage (fallback)
