@@ -49,17 +49,9 @@ try {
   // Try to initialize Firestore
   db = firebase.firestore();
   
-  // Add error handling for Firestore connection issues
-  db.enablePersistence({ synchronizeTabs: true })
-    .catch(err => {
-      if (err.code === 'failed-precondition') {
-        // Multiple tabs open, persistence can only be enabled in one tab at a time
-        console.warn('Firebase persistence could not be enabled: Multiple tabs open');
-      } else if (err.code === 'unimplemented') {
-        // The current browser does not support persistence
-        console.warn('Firebase persistence not supported in this browser');
-      }
-    });
+  // Disable offline persistence to avoid IndexedDB errors
+  // and ensure data is always sent directly to Firebase
+  console.log('Firestore initialized without offline persistence');
 } catch (error) {
   console.error('Error initializing Firestore:', error);
   // Create a mock db object that will fall back to localStorage
@@ -423,6 +415,9 @@ async function saveAnnotation(annotation) {
     if (!currentUser || !currentUser.id) {
       console.warn('User not authenticated, saving to localStorage only');
       
+      // Show login modal to encourage authentication
+      showLoginModal();
+      
       // Fallback to localStorage
       const annotations = loadAnnotations();
       const index = annotations.findIndex(a => a.imageId === annotation.imageId);
@@ -444,9 +439,12 @@ async function saveAnnotation(annotation) {
       return annotation;
     }
     
-    // Add user ID
+    // Add user ID and timestamp
     annotation.userId = currentUser.id;
-    console.log('Saving annotation for user:', currentUser.id);
+    annotation.lastUpdated = new Date();
+    annotation.createdAt = annotation.createdAt || new Date();
+    
+    console.log('Saving annotation to Firebase for user:', currentUser.id);
     console.log('Annotation data:', annotation);
     
     // Check if annotation already exists
@@ -460,25 +458,42 @@ async function saveAnnotation(annotation) {
     if (!querySnapshot.empty) {
       // Update existing annotation
       const docId = querySnapshot.docs[0].id;
-      annotation.lastUpdated = new Date();
       console.log('Updating existing annotation with ID:', docId);
       await db.collection('annotations').doc(docId).update(annotation);
       result = { id: docId, ...annotation };
     } else {
       // Create new annotation
-      annotation.lastUpdated = new Date();
-      console.log('Creating new annotation');
+      console.log('Creating new annotation in Firebase');
       const docRef = await db.collection('annotations').add(annotation);
       console.log('New annotation created with ID:', docRef.id);
       result = { id: docRef.id, ...annotation };
     }
     
-    console.log('Annotation saved successfully');
+    console.log('Annotation saved successfully to Firebase');
+    
+    // Also save to localStorage as a backup
+    try {
+      const annotations = loadAnnotations();
+      const index = annotations.findIndex(a => a.imageId === annotation.imageId);
+      
+      if (index >= 0) {
+        annotations[index] = { ...result };
+      } else {
+        annotations.push({ ...result });
+      }
+      
+      localStorage.setItem('vqa_annotations', JSON.stringify(annotations));
+      console.log('Annotation also saved to localStorage as backup');
+    } catch (e) {
+      console.warn('Failed to save backup to localStorage:', e);
+    }
+    
     return result;
   } catch (error) {
-    console.error('Error saving annotation:', error);
+    console.error('Error saving annotation to Firebase:', error);
     
     // Fallback to localStorage
+    console.warn('Falling back to localStorage for annotation storage');
     const annotations = loadAnnotations();
     const index = annotations.findIndex(a => a.imageId === annotation.imageId);
     
@@ -509,25 +524,64 @@ async function getAnnotation(imageId) {
   try {
     // Check if user is authenticated
     if (!currentUser) {
-      console.warn('User not authenticated, returning null annotation');
+      console.info('User not authenticated, checking localStorage for annotations');
+      // Try to get annotation from localStorage
+      const annotations = loadAnnotations();
+      const localAnnotation = annotations.find(a => a.imageId === imageId);
+      
+      if (localAnnotation) {
+        console.log('Found annotation in localStorage:', localAnnotation);
+        return localAnnotation;
+      }
+      
+      console.info('No annotation found in localStorage');
       return null;
     }
     
+    // User is authenticated, try to get annotation from Firestore
+    console.log('Fetching annotation from Firestore for user:', currentUser.id);
     const querySnapshot = await db.collection('annotations')
       .where('imageId', '==', imageId)
       .where('userId', '==', currentUser.id)
       .get();
     
     if (querySnapshot.empty) {
+      console.log('No annotation found in Firestore');
+      
+      // Check localStorage as fallback
+      const annotations = loadAnnotations();
+      const localAnnotation = annotations.find(a => a.imageId === imageId);
+      
+      if (localAnnotation) {
+        console.log('Found annotation in localStorage, saving to Firestore');
+        
+        // Save the local annotation to Firestore
+        try {
+          localAnnotation.userId = currentUser.id;
+          localAnnotation.lastUpdated = new Date();
+          localAnnotation.createdAt = localAnnotation.createdAt || new Date();
+          
+          const docRef = await db.collection('annotations').add(localAnnotation);
+          console.log('Saved localStorage annotation to Firestore with ID:', docRef.id);
+          
+          return { id: docRef.id, ...localAnnotation };
+        } catch (e) {
+          console.error('Error saving localStorage annotation to Firestore:', e);
+          return localAnnotation;
+        }
+      }
+      
       return null;
     }
     
     const doc = querySnapshot.docs[0];
+    console.log('Found annotation in Firestore with ID:', doc.id);
     return { id: doc.id, ...doc.data() };
   } catch (error) {
     console.error('Error getting annotation:', error);
     
     // Fallback to localStorage
+    console.warn('Falling back to localStorage for annotation retrieval');
     const annotations = loadAnnotations();
     return annotations.find(a => a.imageId === imageId) || null;
   }
