@@ -256,64 +256,76 @@ function getUsername() {
  */
 async function loadTasks(limit = null) {
   try {
-    // Get all tasks from Firestore without limit
-    const snapshot = await db.collection('tasks').get();
-    
-    // Get all tasks without filtering completed ones
-    const tasks = [];
-    snapshot.forEach(doc => {
-      const task = doc.data();
-      tasks.push({
-        id: doc.id,
-        ...task
-      });
-    });
-    
-    // If no tasks found in Firestore, try to load from sample data
-    if (tasks.length === 0) {
-      try {
-        const response = await fetch('assets/captions_v1.json');
-        if (!response.ok) throw new Error('Failed to load sample data');
-        
-        const data = await response.json();
-        
-        // Format tasks for the UI
-        return data.map(item => ({
-          imageId: item.url,
-          imageUrl: item.url,
-          caption: item.context,
-          questions: formatQuestions(item)
-        }));
-      } catch (e) {
-        console.error('Error loading sample data:', e);
-        // Fall back to mock data if sample data loading fails
-        return generateMockData();
-      }
-    }
-    
-    return tasks;
-  } catch (error) {
-    console.error('Error loading tasks from Firestore:', error);
-    
-    // Try to load from sample data
+    // Always try to load from captions_v1.json first
     try {
+      console.log('Loading tasks from captions_v1.json...');
       const response = await fetch('assets/captions_v1.json');
       if (!response.ok) throw new Error('Failed to load sample data');
       
       const data = await response.json();
+      console.log(`Loaded ${data.length} tasks from captions_v1.json`);
       
       // Format tasks for the UI
-      return data.map(item => ({
+      const formattedTasks = data.map(item => ({
         imageId: item.url,
         imageUrl: item.url,
         caption: item.context,
         questions: formatQuestions(item)
       }));
+      
+      // If user is authenticated, try to save tasks to Firestore
+      if (currentUser) {
+        try {
+          console.log('Saving tasks to Firestore...');
+          // Check if tasks already exist in Firestore
+          const snapshot = await db.collection('tasks').get();
+          if (snapshot.empty) {
+            // No tasks in Firestore, add them
+            for (const task of formattedTasks) {
+              await db.collection('tasks').add(task);
+            }
+            console.log(`Saved ${formattedTasks.length} tasks to Firestore`);
+          } else {
+            console.log('Tasks already exist in Firestore, skipping save');
+          }
+        } catch (e) {
+          console.error('Error saving tasks to Firestore:', e);
+          // Continue with the loaded tasks even if saving fails
+        }
+      }
+      
+      return formattedTasks;
     } catch (e) {
-      console.error('Error loading sample data:', e);
-      // Fall back to mock data if sample data loading fails
+      console.error('Error loading from captions_v1.json:', e);
+      
+      // If loading from captions_v1.json fails, try Firestore
+      console.log('Trying to load tasks from Firestore...');
+      const snapshot = await db.collection('tasks').get();
+      
+      // Get all tasks without filtering completed ones
+      const tasks = [];
+      snapshot.forEach(doc => {
+        const task = doc.data();
+        tasks.push({
+          id: doc.id,
+          ...task
+        });
+      });
+      
+      if (tasks.length > 0) {
+        console.log(`Loaded ${tasks.length} tasks from Firestore`);
+        return tasks;
+      }
+      
+      // If no tasks in Firestore either, fall back to mock data
+      console.log('No tasks found, using mock data');
       return generateMockData();
     }
+  } catch (error) {
+    console.error('Error in loadTasks:', error);
+    // Final fallback to mock data
+    console.log('Using mock data as final fallback');
+    return generateMockData();
   }
 }
 
