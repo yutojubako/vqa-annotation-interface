@@ -11,8 +11,8 @@ const USERS = {
   'annotator': { password: 'anno123', isAdmin: false }
 };
 
-// Current authenticated user
-let currentUser = null;
+// Current authenticated user (renamed to avoid conflict with firebase-integration.js)
+let localCurrentUser = null;
 
 /**
  * Initialize authentication on page load
@@ -49,13 +49,13 @@ function checkAuth() {
     }
     
     // Set current user
-    currentUser = {
+    localCurrentUser = {
       username: userData.username,
       isAdmin: userData.isAdmin
     };
     
     // Update UI
-    document.getElementById('username-display').textContent = currentUser.username;
+    document.getElementById('username-display').textContent = localCurrentUser.username;
     return true;
   } catch (error) {
     console.error('Error parsing auth data:', error);
@@ -107,13 +107,13 @@ function handleLogin(e) {
   localStorage.setItem(AUTH_KEY, JSON.stringify(authData));
   
   // Set current user
-  currentUser = {
+  localCurrentUser = {
     username: username,
     isAdmin: USERS[username].isAdmin
   };
   
   // Update UI
-  document.getElementById('username-display').textContent = currentUser.username;
+  document.getElementById('username-display').textContent = localCurrentUser.username;
   
   // Close modal
   const loginModal = bootstrap.Modal.getInstance(document.getElementById('login-modal'));
@@ -133,7 +133,7 @@ function handleLogout() {
   localStorage.removeItem(AUTH_KEY);
   
   // Clear current user
-  currentUser = null;
+  localCurrentUser = null;
   
   // Show login modal
   showLoginModal();
@@ -144,7 +144,7 @@ function handleLogout() {
  * @returns {boolean} True if admin, false otherwise
  */
 function isAdmin() {
-  return currentUser && currentUser.isAdmin;
+  return localCurrentUser && localCurrentUser.isAdmin;
 }
 
 /**
@@ -152,7 +152,7 @@ function isAdmin() {
  * @returns {string|null} Username or null if not authenticated
  */
 function getUsername() {
-  return currentUser ? currentUser.username : null;
+  return localCurrentUser ? localCurrentUser.username : null;
 }
 
 // Initialize authentication on page load
