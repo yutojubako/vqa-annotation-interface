@@ -2,6 +2,18 @@
 
 A web-based interface for annotating panoramic images with Visual Question Answering (VQA) data. This tool allows annotators to view 360-degree panoramic images and answer questions about them, with support for different question categories and confidence ratings.
 
+## Recent Updates
+
+### Fixed Issues Between Local and GitHub Pages Environments
+
+We've addressed several issues that were causing differences in behavior between local and GitHub Pages environments:
+
+1. **Progress Display**: Fixed the issue where the progress bar showed "0/0 images annotated" when the user was not authenticated.
+2. **Image Loading**: Modified the data loading strategy to always load from the local JSON file first, ensuring that images are always displayed correctly.
+3. **Authentication Handling**: Improved handling of unauthenticated users to ensure the application works correctly even without Firebase authentication.
+
+For more details, see [fix-progress-display.md](fix-progress-display.md).
+
 ## Features
 
 - **Interactive Panorama Viewing**: Uses Pannellum for 360-degree panoramic image viewing
@@ -27,7 +39,7 @@ vqa-interface/
 │   │   └── auth.js            # Authentication logic
 │   └── assets/                # Static assets
 │       ├── loading.txt        # Base64 loading image
-│       └── sample_data.json   # Sample data for testing
+│       └── captions_v1.json   # Annotation data
 └── backend/                   # Server-side code (optional)
     └── ...                    # Backend implementation
 ```
@@ -170,7 +182,7 @@ The annotation interface expects data in the following format:
 The interface can work with data generated from WebDataset format using the provided conversion script:
 
 ```bash
-./convert_webdataset.py --data path/to/shard-{000000..000999}.tar --output frontend/assets/annotation_data.json
+./convert_webdataset.py --data path/to/shard-{000000..000999}.tar --output frontend/assets/captions_v1.json
 ```
 
 This will generate a JSON file that can be used with the annotation interface. The script supports several options:
@@ -241,7 +253,7 @@ For GitHub Pages deployment with proper authentication and data persistence, Fir
 1. Create a Firebase project at https://console.firebase.google.com/
 2. Enable Authentication and Firestore
 3. Add a web app to your project and get the configuration
-4. Replace the Firebase configuration in `frontend/js/firebase-integration.js`:
+4. Replace the Firebase configuration in `frontend/js/firebase-config.js`:
    ```javascript
    const firebaseConfig = {
      apiKey: "YOUR_API_KEY",
@@ -260,12 +272,7 @@ For GitHub Pages deployment with proper authentication and data persistence, Fir
    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js"></script>
    ```
 
-6. Replace the `api.js` file with `firebase-integration.js`:
-   ```bash
-   cp frontend/js/firebase-integration.js frontend/js/api.js
-   ```
-
-7. Create users in the Firebase Authentication console or implement a registration form
+6. Create users in the Firebase Authentication console or implement a registration form
 
 This approach allows you to deploy to GitHub Pages while still having proper authentication and data persistence.
 
@@ -337,6 +344,22 @@ The backend provides the following API endpoints:
 - `GET /api/progress` - Get annotation progress
 - `GET /api/export` - Export all annotations
 - `GET /api/admin/dashboard` - Get admin dashboard data
+
+## Troubleshooting
+
+### Common Issues
+
+1. **Firebase Authentication Issues**: If you're having trouble with Firebase authentication, check the browser console for error messages. Make sure your Firebase configuration is correct and that you've enabled the Email/Password authentication method in the Firebase Console.
+
+2. **Images Not Loading**: If images are not loading, check the browser console for CORS errors. You may need to ensure that your image hosting service allows cross-origin requests.
+
+3. **Progress Not Saving**: If your progress is not being saved, check that localStorage is available in your browser and that you have sufficient storage space.
+
+4. **GitHub Pages Deployment Issues**: If your GitHub Pages deployment is not working correctly, check the GitHub Actions logs for error messages. Make sure your repository is set up correctly for GitHub Pages deployment.
+
+### Fixing Issues Between Local and GitHub Pages Environments
+
+If you encounter differences in behavior between local and GitHub Pages environments, see [fix-progress-display.md](fix-progress-display.md) for solutions to common issues.
 
 ## License
 
