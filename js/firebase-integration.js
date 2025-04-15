@@ -43,7 +43,92 @@ try {
 
 // Get Firebase services
 const auth = firebase.auth();
-const db = firebase.firestore();
+let db;
+
+try {
+  // Try to initialize Firestore
+  db = firebase.firestore();
+  
+  // Add error handling for Firestore connection issues
+  db.enablePersistence({ synchronizeTabs: true })
+    .catch(err => {
+      if (err.code === 'failed-precondition') {
+        // Multiple tabs open, persistence can only be enabled in one tab at a time
+        console.warn('Firebase persistence could not be enabled: Multiple tabs open');
+      } else if (err.code === 'unimplemented') {
+        // The current browser does not support persistence
+        console.warn('Firebase persistence not supported in this browser');
+      }
+    });
+} catch (error) {
+  console.error('Error initializing Firestore:', error);
+  // Create a mock db object that will fall back to localStorage
+  db = createMockFirestore();
+}
+
+/**
+ * Create a mock Firestore object that uses localStorage
+ * This is used as a fallback when Firestore is not available
+ * @returns {Object} Mock Firestore object
+ */
+function createMockFirestore() {
+  return {
+    collection: (collectionName) => ({
+      doc: (docId) => ({
+        get: () => Promise.resolve({
+          exists: false,
+          data: () => null
+        }),
+        set: (data) => {
+          const storageKey = `mock_firestore_${collectionName}_${docId}`;
+          localStorage.setItem(storageKey, JSON.stringify(data));
+          return Promise.resolve();
+        },
+        update: (data) => {
+          const storageKey = `mock_firestore_${collectionName}_${docId}`;
+          const existingData = localStorage.getItem(storageKey);
+          const mergedData = existingData ? { ...JSON.parse(existingData), ...data } : data;
+          localStorage.setItem(storageKey, JSON.stringify(mergedData));
+          return Promise.resolve();
+        }
+      }),
+      where: () => ({
+        where: () => ({
+          get: () => Promise.resolve({
+            empty: true,
+            docs: [],
+            forEach: () => {}
+          })
+        }),
+        get: () => Promise.resolve({
+          empty: true,
+          docs: [],
+          forEach: () => {}
+        }),
+        limit: () => ({
+          get: () => Promise.resolve({
+            empty: true,
+            docs: [],
+            forEach: () => {}
+          })
+        })
+      }),
+      add: (data) => {
+        const docId = Math.random().toString(36).substring(2, 15);
+        const storageKey = `mock_firestore_${collectionName}_${docId}`;
+        localStorage.setItem(storageKey, JSON.stringify(data));
+        return Promise.resolve({ id: docId });
+      },
+      limit: () => ({
+        get: () => Promise.resolve({
+          empty: true,
+          docs: [],
+          forEach: () => {}
+        })
+      })
+    })
+  };
+}
 
 // Current user
 let currentUser = null;
