@@ -15,10 +15,10 @@ const SAMPLE_DATA_URL = 'assets/captions_v1.json';
 
 /**
  * Load annotation tasks
- * @param {number} limit - Maximum number of tasks to load
+ * @param {number} limit - Maximum number of tasks to load (optional)
  * @returns {Promise<Array>} Array of annotation tasks
  */
-async function loadTasks(limit = 10) {
+async function loadTasks(limit = null) {
   try {
     // 直接ファイルから読み込み、localStorageには保存しない
     const response = await fetch(SAMPLE_DATA_URL);
@@ -36,13 +36,15 @@ async function loadTasks(limit = 10) {
       .filter(a => a.isComplete)
       .map(a => a.imageId);
     
-    // Filter out completed images and limit results
+    // Filter out completed images but don't limit results
     const pendingTasks = data
-      .filter(item => !completedImageIds.includes(item.url))
-      .slice(0, limit);
+      .filter(item => !completedImageIds.includes(item.url));
+    
+    // Apply limit only if specified
+    const limitedTasks = limit ? pendingTasks.slice(0, limit) : pendingTasks;
     
     // Format tasks for the UI
-    return pendingTasks.map(item => ({
+    return limitedTasks.map(item => ({
       imageId: item.url,
       imageUrl: item.url,
       caption: item.context,
@@ -52,7 +54,8 @@ async function loadTasks(limit = 10) {
     console.error('Error loading tasks:', error);
     // エラー時はモックデータを使用
     const mockData = generateMockData();
-    return mockData.slice(0, limit).map(item => ({
+    const limitedMockData = limit ? mockData.slice(0, limit) : mockData;
+    return limitedMockData.map(item => ({
       imageId: item.url,
       imageUrl: item.url,
       caption: item.context,
@@ -252,6 +255,43 @@ function generateMockData() {
   }
   
   return mockData;
+}
+
+/**
+ * Find a task by ID or URL
+ * @param {string} id - Task ID or URL
+ * @returns {Promise<Object|null>} Task or null if not found
+ */
+async function findTaskById(id) {
+  try {
+    const response = await fetch(SAMPLE_DATA_URL);
+    
+    if (!response.ok) {
+      throw new Error('Failed to load sample data');
+    }
+    
+    const data = await response.json();
+    
+    // Find task by URL or partial URL match
+    const task = data.find(item => 
+      item.url === id || 
+      item.url.includes(id) || 
+      (item.id && item.id === id)
+    );
+    
+    if (!task) return null;
+    
+    // Format task for the UI
+    return {
+      imageId: task.url,
+      imageUrl: task.url,
+      caption: task.context,
+      questions: formatQuestions(task)
+    };
+  } catch (error) {
+    console.error('Error finding task by ID:', error);
+    return null;
+  }
 }
 
 /**

@@ -25,8 +25,8 @@ async function initAnnotation() {
     // Show loading state
     showLoading(true);
     
-    // Load tasks from API
-    currentTasks = await loadTasks(10);
+    // Load tasks from API without limit
+    currentTasks = await loadTasks();
     
     if (currentTasks.length === 0) {
       showMessage('No more tasks available for annotation!', 'warning');
@@ -504,8 +504,55 @@ async function createSampleDataFromWebDataset() {
   return mockData;
 }
 
+/**
+ * 特定のサンプルにジャンプする
+ * @param {string} sampleId - サンプルIDまたはURL
+ */
+async function jumpToSample(sampleId) {
+  try {
+    showLoading(true);
+    
+    // サンプルIDでタスクを検索
+    const task = await findTaskById(sampleId);
+    
+    if (!task) {
+      showMessage(`サンプルID "${sampleId}" が見つかりませんでした。`, 'warning');
+      showLoading(false);
+      return;
+    }
+    
+    // 現在のタスクリストに追加（まだ含まれていない場合）
+    const existingIndex = currentTasks.findIndex(t => t.imageId === task.imageId);
+    if (existingIndex >= 0) {
+      // 既に存在する場合はそのインデックスに移動
+      loadTask(existingIndex);
+    } else {
+      // 存在しない場合は追加して移動
+      currentTasks.push(task);
+      loadTask(currentTasks.length - 1);
+    }
+    
+    showLoading(false);
+  } catch (error) {
+    console.error('Error jumping to sample:', error);
+    showMessage('サンプルへのジャンプに失敗しました。', 'danger');
+    showLoading(false);
+  }
+}
+
 // Initialize annotation on page load
 document.addEventListener('DOMContentLoaded', () => {
   // Annotation will be initialized after authentication
   // in the handleLogin function
+  
+  // ジャンプボタンのイベントリスナーを追加
+  const jumpBtn = document.getElementById('jump-btn');
+  if (jumpBtn) {
+    jumpBtn.addEventListener('click', () => {
+      const sampleId = document.getElementById('sample-id-input').value.trim();
+      if (sampleId) {
+        jumpToSample(sampleId);
+      }
+    });
+  }
 });
