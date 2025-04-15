@@ -106,15 +106,20 @@ function showLoginModal() {
 function handleLogin(e) {
   e.preventDefault();
   
-  const email = document.getElementById('username').value;
+  let username = document.getElementById('username').value;
   const password = document.getElementById('password').value;
   const errorElement = document.getElementById('login-error');
   
   // Clear previous errors
   errorElement.classList.add('d-none');
   
+  // Convert username to email format if it doesn't contain '@'
+  if (!username.includes('@')) {
+    username = `${username}@example.com`;
+  }
+  
   // Sign in with email and password
-  auth.signInWithEmailAndPassword(email, password)
+  auth.signInWithEmailAndPassword(username, password)
     .then(userCredential => {
       // Close modal
       const loginModal = bootstrap.Modal.getInstance(document.getElementById('login-modal'));
