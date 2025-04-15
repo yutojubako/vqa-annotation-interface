@@ -30,18 +30,11 @@ async function loadTasks(limit = null) {
     // JSONとして直接解析
     const data = await response.json();
     
-    // Get user's progress
-    const annotations = loadAnnotations();
-    const completedImageIds = annotations
-      .filter(a => a.isComplete)
-      .map(a => a.imageId);
-    
-    // Filter out completed images but don't limit results
-    const pendingTasks = data
-      .filter(item => !completedImageIds.includes(item.url));
+    // Get all tasks without filtering completed ones
+    const allTasks = data;
     
     // Apply limit only if specified
-    const limitedTasks = limit ? pendingTasks.slice(0, limit) : pendingTasks;
+    const limitedTasks = limit ? allTasks.slice(0, limit) : allTasks;
     
     // Format tasks for the UI
     return limitedTasks.map(item => ({
@@ -258,8 +251,8 @@ function generateMockData() {
 }
 
 /**
- * Find a task by ID or URL
- * @param {string} id - Task ID or URL
+ * Find a task by ID, URL, or 0-based index
+ * @param {string} id - Task ID, URL, or 0-based index
  * @returns {Promise<Object|null>} Task or null if not found
  */
 async function findTaskById(id) {
@@ -271,6 +264,20 @@ async function findTaskById(id) {
     }
     
     const data = await response.json();
+    
+    // Check if id is a number (0-based index)
+    if (!isNaN(parseInt(id))) {
+      const index = parseInt(id);
+      if (index >= 0 && index < data.length) {
+        const task = data[index];
+        return {
+          imageId: task.url,
+          imageUrl: task.url,
+          caption: task.context,
+          questions: formatQuestions(task)
+        };
+      }
+    }
     
     // Find task by URL or partial URL match
     const task = data.find(item => 

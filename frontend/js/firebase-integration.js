@@ -256,27 +256,17 @@ function getUsername() {
  */
 async function loadTasks(limit = null) {
   try {
-    // Get tasks from Firestore without limit
+    // Get all tasks from Firestore without limit
     const snapshot = await db.collection('tasks').get();
     
-    // Get user's progress
-    const annotationsSnapshot = await db.collection('annotations')
-      .where('userId', '==', currentUser.id)
-      .where('isComplete', '==', true)
-      .get();
-    
-    const completedImageIds = annotationsSnapshot.docs.map(doc => doc.data().imageId);
-    
-    // Filter out completed tasks
+    // Get all tasks without filtering completed ones
     const tasks = [];
     snapshot.forEach(doc => {
       const task = doc.data();
-      if (!completedImageIds.includes(task.imageId)) {
-        tasks.push({
-          id: doc.id,
-          ...task
-        });
-      }
+      tasks.push({
+        id: doc.id,
+        ...task
+      });
     });
     
     return tasks;
@@ -288,13 +278,29 @@ async function loadTasks(limit = null) {
 }
 
 /**
- * Find a task by ID or URL
- * @param {string} id - Task ID or URL
+ * Find a task by ID, URL, or 0-based index
+ * @param {string} id - Task ID, URL, or 0-based index
  * @returns {Promise<Object|null>} Task or null if not found
  */
 async function findTaskById(id) {
   try {
-    // First try to find by ID
+    // Check if id is a number (0-based index)
+    if (!isNaN(parseInt(id))) {
+      const index = parseInt(id);
+      // Get all tasks
+      const snapshot = await db.collection('tasks').get();
+      const tasks = [];
+      snapshot.forEach(doc => {
+        tasks.push({ id: doc.id, ...doc.data() });
+      });
+      
+      // Return task at the specified index if it exists
+      if (index >= 0 && index < tasks.length) {
+        return tasks[index];
+      }
+    }
+    
+    // If not an index or index not found, try to find by ID
     let snapshot = await db.collection('tasks').where('id', '==', id).get();
     
     // If not found, try to find by imageId
