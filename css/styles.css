@@ -57,6 +57,26 @@ body {
   border-left: 3px solid #007bff;
 }
 
+/* Question editing styles */
+.card-text[contenteditable="true"] {
+  padding: 5px;
+  background-color: #f8f9fa;
+  border: 1px solid #ced4da;
+  border-radius: 4px;
+  min-height: 40px;
+}
+
+.card-text[contenteditable="true"]:focus {
+  outline: none;
+  border-color: #80bdff;
+  box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+}
+
+.card-text.editing {
+  background-color: #fff8e1;
+  border: 1px solid #ffd54f;
+}
+
 /* Confidence rating styles */
 .confidence-rating {
   display: flex;
@@ -110,6 +130,12 @@ body {
 .btn-success:hover {
   background-color: #218838;
   border-color: #1e7e34;
+}
+
+/* Current index display */
+#current-index {
+  font-weight: bold;
+  color: #fff;
 }
 
 /* Responsive adjustments */

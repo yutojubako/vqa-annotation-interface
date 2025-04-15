@@ -328,37 +328,90 @@ async function loadTasks(limit = null) {
  */
 async function findTaskById(id) {
   try {
+    console.log(`Finding task with ID/index: ${id}`);
+    
     // Check if id is a number (0-based index)
     if (!isNaN(parseInt(id))) {
       const index = parseInt(id);
-      // Get all tasks
+      console.log(`Parsed as numeric index: ${index}`);
+      
+      // For numeric indices, try to load from captions_v1.json first
+      try {
+        console.log('Loading from captions_v1.json for numeric index...');
+        const response = await fetch('assets/captions_v1.json');
+        if (!response.ok) throw new Error('Failed to load sample data');
+        
+        const data = await response.json();
+        console.log(`Loaded ${data.length} items from captions_v1.json`);
+        
+        // Check if index is within range
+        if (index >= 0 && index < data.length) {
+          console.log(`Found item at index ${index} in captions_v1.json`);
+          const item = data[index];
+          return {
+            imageId: item.url,
+            imageUrl: item.url,
+            caption: item.context,
+            questions: formatQuestions(item)
+          };
+        } else {
+          console.log(`Index ${index} out of range (0-${data.length-1})`);
+          
+          // If index is out of range but close to the end, return the last item
+          if (index >= data.length && index < data.length + 10) {
+            console.log(`Index close to end, returning last item (${data.length-1})`);
+            const item = data[data.length - 1];
+            return {
+              imageId: item.url,
+              imageUrl: item.url,
+              caption: item.context,
+              questions: formatQuestions(item)
+            };
+          }
+        }
+      } catch (e) {
+        console.error('Error loading from captions_v1.json:', e);
+        // Continue to try other methods
+      }
+      
+      // If captions_v1.json approach failed, try Firestore
+      console.log('Trying to find task by index in Firestore...');
       const snapshot = await db.collection('tasks').get();
       const tasks = [];
       snapshot.forEach(doc => {
         tasks.push({ id: doc.id, ...doc.data() });
       });
       
+      console.log(`Found ${tasks.length} tasks in Firestore`);
+      
       // Return task at the specified index if it exists
       if (index >= 0 && index < tasks.length) {
+        console.log(`Found task at index ${index} in Firestore`);
         return tasks[index];
+      } else {
+        console.log(`Index ${index} out of range in Firestore (0-${tasks.length-1})`);
       }
     }
     
     // If not an index or index not found, try to find by ID
+    console.log('Trying to find task by ID in Firestore...');
     let snapshot = await db.collection('tasks').where('id', '==', id).get();
     
     // If not found, try to find by imageId
     if (snapshot.empty) {
+      console.log('Not found by ID, trying imageId...');
       snapshot = await db.collection('tasks').where('imageId', '==', id).get();
     }
     
     // If still not found, try to find by imageUrl
     if (snapshot.empty) {
+      console.log('Not found by imageId, trying imageUrl...');
       snapshot = await db.collection('tasks').where('imageUrl', '==', id).get();
     }
     
     // If still not found, try to find by partial URL match
     if (snapshot.empty) {
+      console.log('Not found by exact URL, trying partial URL match...');
       snapshot = await db.collection('tasks').get();
       let task = null;
       snapshot.forEach(doc => {
@@ -367,27 +420,38 @@ async function findTaskById(id) {
           task = { id: doc.id, ...data };
         }
       });
-      if (task) return task;
+      if (task) {
+        console.log('Found by partial URL match');
+        return task;
+      }
     } else {
       // Return the first match if found
+      console.log('Found in Firestore');
       const doc = snapshot.docs[0];
       return { id: doc.id, ...doc.data() };
     }
     
     // If still not found, try to load from sample data
+    console.log('Not found in Firestore, trying sample data...');
     try {
       const response = await fetch('assets/captions_v1.json');
       if (!response.ok) throw new Error('Failed to load sample data');
       
       const data = await response.json();
+      console.log(`Loaded ${data.length} items from captions_v1.json for search`);
+      
       const item = data.find(item => 
         item.url === id || 
         item.url.includes(id) || 
         (item.id && item.id === id)
       );
       
-      if (!item) return null;
+      if (!item) {
+        console.log('Not found in sample data');
+        return null;
+      }
       
+      console.log('Found in sample data');
       return {
         imageId: item.url,
         imageUrl: item.url,
