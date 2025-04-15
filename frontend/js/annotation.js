@@ -80,6 +80,9 @@ async function loadTask(index) {
     // Update caption
     document.getElementById('image-caption').textContent = task.caption || 'No caption available';
     
+    // Update current index display
+    document.getElementById('current-index').textContent = `現在：${index + 1}/${currentTasks.length}`;
+    
     // Initialize panorama viewer
     initPanorama(task.imageUrl);
     
@@ -206,9 +209,24 @@ function generateQuestionTabs(questions) {
       const questionBody = document.createElement('div');
       questionBody.className = 'card-body';
       
+      // Question header with edit button
+      const questionHeader = document.createElement('div');
+      questionHeader.className = 'd-flex justify-content-between align-items-start mb-2';
+      
       const questionText = document.createElement('p');
-      questionText.className = 'card-text';
+      questionText.className = 'card-text mb-0';
       questionText.textContent = question.question;
+      questionText.dataset.questionId = question.id;
+      
+      const editButton = document.createElement('button');
+      editButton.className = 'btn btn-sm btn-outline-secondary';
+      editButton.innerHTML = '編集';
+      editButton.addEventListener('click', () => {
+        toggleQuestionEditMode(question.id, questionText);
+      });
+      
+      questionHeader.appendChild(questionText);
+      questionHeader.appendChild(editButton);
       
       const answerInput = document.createElement('textarea');
       answerInput.className = 'form-control mb-2';
@@ -220,7 +238,7 @@ function generateQuestionTabs(questions) {
       
       // Add event listener for auto-save
       answerInput.addEventListener('input', () => {
-        updateAnswer(question.id, question.question, question.attribute, answerInput.value);
+        updateAnswer(question.id, questionText.textContent, question.attribute, answerInput.value);
         scheduleAutoSave();
       });
       
@@ -251,7 +269,7 @@ function generateQuestionTabs(questions) {
       confidenceDiv.appendChild(confidenceLabel);
       confidenceDiv.appendChild(confidenceSelect);
       
-      questionBody.appendChild(questionText);
+      questionBody.appendChild(questionHeader);
       questionBody.appendChild(answerInput);
       questionBody.appendChild(confidenceDiv);
       questionCard.appendChild(questionBody);
@@ -260,6 +278,70 @@ function generateQuestionTabs(questions) {
     
     questionsContainer.appendChild(tabContent);
   });
+}
+
+/**
+ * Toggle question edit mode
+ * @param {string} questionId - Question ID
+ * @param {HTMLElement} questionElement - Question element
+ */
+function toggleQuestionEditMode(questionId, questionElement) {
+  const isEditing = questionElement.contentEditable === 'true';
+  
+  if (isEditing) {
+    // Save the edited question
+    questionElement.contentEditable = 'false';
+    questionElement.classList.remove('editing');
+    
+    // Update the question in the current task
+    updateQuestionText(questionId, questionElement.textContent);
+    
+    // Update the dataset for the answer input
+    const answerInput = document.querySelector(`textarea[data-question-id="${questionId}"]`);
+    if (answerInput) {
+      answerInput.dataset.question = questionElement.textContent;
+    }
+  } else {
+    // Enter edit mode
+    questionElement.contentEditable = 'true';
+    questionElement.classList.add('editing');
+    questionElement.focus();
+    
+    // Select all text
+    const range = document.createRange();
+    range.selectNodeContents(questionElement);
+    const selection = window.getSelection();
+    selection.removeAllRanges();
+    selection.addRange(range);
+  }
+}
+
+/**
+ * Update question text
+ * @param {string} questionId - Question ID
+ * @param {string} newText - New question text
+ */
+function updateQuestionText(questionId, newText) {
+  // Find the question in the current task
+  const task = currentTasks[currentTaskIndex];
+  const questionIndex = task.questions.findIndex(q => q.id === questionId);
+  
+  if (questionIndex >= 0) {
+    // Update the question text
+    task.questions[questionIndex].question = newText;
+    
+    // Update any answers that reference this question
+    const answerIndex = currentAnnotation.answers.findIndex(a => a.questionId === questionId);
+    if (answerIndex >= 0) {
+      currentAnnotation.answers[answerIndex].question = newText;
+    }
+    
+    // Show a message
+    showMessage('質問が更新されました', 'success');
+    
+    // Schedule auto-save
+    scheduleAutoSave();
+  }
 }
 
 /**
