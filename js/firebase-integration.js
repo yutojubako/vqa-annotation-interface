@@ -248,14 +248,14 @@ function getUsername() {
  */
 async function loadTasks(limit = null) {
   try {
-    // Always try to load from captions_v1.json first
+    // Always try to load from captions_v2.json first
     try {
-      console.log('Loading tasks from captions_v1.json...');
-      const response = await fetch('assets/captions_v1.json');
+      console.log('Loading tasks from captions_v2.json...');
+      const response = await fetch('assets/captions_v2.json');
       if (!response.ok) throw new Error('Failed to load sample data');
       
       const data = await response.json();
-      console.log(`Loaded ${data.length} tasks from captions_v1.json`);
+      console.log(`Loaded ${data.length} tasks from captions_v2.json`);
       
       // Format tasks for the UI
       const formattedTasks = data.map(item => ({
@@ -288,9 +288,9 @@ async function loadTasks(limit = null) {
       
       return formattedTasks;
     } catch (e) {
-      console.error('Error loading from captions_v1.json:', e);
+      console.error('Error loading from captions_v2.json:', e);
       
-      // If loading from captions_v1.json fails, try Firestore
+      // If loading from captions_v2.json fails, try Firestore
       console.log('Trying to load tasks from Firestore...');
       const snapshot = await db.collection('tasks').get();
       
@@ -335,18 +335,18 @@ async function findTaskById(id) {
       const index = parseInt(id);
       console.log(`Parsed as numeric index: ${index}`);
       
-      // For numeric indices, try to load from captions_v1.json first
+      // For numeric indices, try to load from captions_v2.json first
       try {
-        console.log('Loading from captions_v1.json for numeric index...');
-        const response = await fetch('assets/captions_v1.json');
+        console.log('Loading from captions_v2.json for numeric index...');
+        const response = await fetch('assets/captions_v2.json');
         if (!response.ok) throw new Error('Failed to load sample data');
         
         const data = await response.json();
-        console.log(`Loaded ${data.length} items from captions_v1.json`);
+        console.log(`Loaded ${data.length} items from captions_v2.json`);
         
         // Check if index is within range
         if (index >= 0 && index < data.length) {
-          console.log(`Found item at index ${index} in captions_v1.json`);
+          console.log(`Found item at index ${index} in captions_v2.json`);
           const item = data[index];
           return {
             imageId: item.url,
@@ -370,11 +370,11 @@ async function findTaskById(id) {
           }
         }
       } catch (e) {
-        console.error('Error loading from captions_v1.json:', e);
+        console.error('Error loading from captions_v2.json:', e);
         // Continue to try other methods
       }
       
-      // If captions_v1.json approach failed, try Firestore
+      // If captions_v2.json approach failed, try Firestore
       console.log('Trying to find task by index in Firestore...');
       const snapshot = await db.collection('tasks').get();
       const tasks = [];
@@ -434,11 +434,11 @@ async function findTaskById(id) {
     // If still not found, try to load from sample data
     console.log('Not found in Firestore, trying sample data...');
     try {
-      const response = await fetch('assets/captions_v1.json');
+      const response = await fetch('assets/captions_v2.json');
       if (!response.ok) throw new Error('Failed to load sample data');
       
       const data = await response.json();
-      console.log(`Loaded ${data.length} items from captions_v1.json for search`);
+      console.log(`Loaded ${data.length} items from captions_v2.json for search`);
       
       const item = data.find(item => 
         item.url === id || 
@@ -666,7 +666,7 @@ async function getProgress() {
       // If no tasks found in Firestore, try to load from sample data
       if (total === 0) {
         try {
-          const response = await fetch('assets/captions_v1.json');
+          const response = await fetch('assets/captions_v2.json');
           if (response.ok) {
             const data = await response.json();
             total = data.length;
@@ -681,7 +681,7 @@ async function getProgress() {
       console.error('Error getting tasks for progress:', e);
       // Try to load from sample data
       try {
-        const response = await fetch('assets/captions_v1.json');
+        const response = await fetch('assets/captions_v2.json');
         if (response.ok) {
           const data = await response.json();
           total = data.length;
@@ -725,7 +725,7 @@ async function getProgress() {
     // Try to get total from sample data
     let total = completedCount + inProgressCount;
     try {
-      const response = await fetch('assets/captions_v1.json');
+      const response = await fetch('assets/captions_v2.json');
       if (response.ok) {
         const data = await response.json();
         total = data.length;
