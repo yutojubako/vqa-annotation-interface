@@ -100,6 +100,38 @@ body {
   border-radius: 5px;
 }
 
+/* Segmented progress bar styles */
+.progress-container {
+  width: 100%;
+  height: 10px;
+  background-color: #e9ecef;
+  border-radius: 5px;
+  overflow: hidden;
+  display: flex;
+}
+
+.segmented-progress {
+  display: flex;
+  width: 100%;
+  height: 100%;
+}
+
+.progress-segment {
+  height: 100%;
+  flex-grow: 1;
+  margin: 0 1px;
+  background-color: #e9ecef;
+  transition: background-color 0.3s ease;
+}
+
+.progress-segment.completed {
+  background-color: #28a745;
+}
+
+.progress-segment.current {
+  background-color: #007bff;
+}
+
 /* Modal customization */
 .modal-content {
   border-radius: 5px;
