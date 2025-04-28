@@ -43,7 +43,10 @@ async function initAnnotation() {
     // Set up event listeners
     document.getElementById('prev-btn').addEventListener('click', loadPreviousTask);
     document.getElementById('next-btn').addEventListener('click', loadNextTask);
-    document.getElementById('save-btn').addEventListener('click', () => saveCurrentAnnotation(false));
+    document.getElementById('save-btn').addEventListener('click', () => saveCurrentAnnotation(true));
+    
+    // Initialize segmented progress bar
+    initializeProgressBar(currentTasks.length);
     
     // Hide loading state
     showLoading(false);
@@ -395,6 +398,7 @@ function scheduleAutoSave() {
   }
   
   saveTimeout = setTimeout(() => {
+    // Auto-save always sets isComplete to false to avoid marking as complete automatically
     saveCurrentAnnotation(false);
   }, 3000); // Auto-save after 3 seconds of inactivity
 }
@@ -461,19 +465,91 @@ function loadSavedAnswers(savedAnnotation) {
 }
 
 /**
+ * Initialize the segmented progress bar
+ * @param {number} totalTasks - Total number of tasks
+ */
+function initializeProgressBar(totalTasks) {
+  const progressContainer = document.getElementById('segmented-progress');
+  progressContainer.innerHTML = '';
+  
+  // タスク数が多すぎる場合は適切な数に制限
+  const maxVisibleSegments = 100; // 表示するセグメントの最大数
+  const segmentCount = Math.min(totalTasks, maxVisibleSegments);
+  
+  // セグメントを作成
+  for (let i = 0; i < segmentCount; i++) {
+    const segment = document.createElement('div');
+    segment.className = 'progress-segment';
+    segment.dataset.index = i;
+    progressContainer.appendChild(segment);
+  }
+}
+
+/**
+ * Get completed task indices
+ * @returns {Promise<Array>} Array of completed task indices
+ */
+async function getCompletedIndices() {
+  try {
+    // 保存されたアノテーションを取得
+    const annotations = loadAnnotations ? loadAnnotations() : [];
+    
+    // 完了したアノテーションのimageIdを取得
+    const completedImageIds = annotations
+      .filter(a => a.isComplete)
+      .map(a => a.imageId);
+    
+    // imageIdに対応するタスクのインデックスを取得
+    const completedIndices = currentTasks
+      .map((task, index) => ({ task, index }))
+      .filter(item => completedImageIds.includes(item.task.imageId))
+      .map(item => item.index);
+    
+    return completedIndices;
+  } catch (error) {
+    console.error('Error getting completed indices:', error);
+    return [];
+  }
+}
+
+/**
  * Update progress display
  */
 async function updateProgress() {
   try {
     const progress = await getProgress();
     
-    // Update progress bar
+    // Update original progress bar (for compatibility)
     const progressBar = document.getElementById('progress-bar');
     const progressText = document.getElementById('progress-text');
     
     const progressPercent = progress.total > 0 ? (progress.completed / progress.total) * 100 : 0;
     progressBar.style.width = `${progressPercent}%`;
     progressText.textContent = `${progress.completed}/${progress.total} images annotated`;
+    
+    // Update segmented progress bar
+    const segments = document.querySelectorAll('.progress-segment');
+    
+    // 完了したアノテーションのインデックスを取得
+    const completedIndices = await getCompletedIndices();
+    
+    // 各セグメントを更新
+    segments.forEach((segment, index) => {
+      // すべてのクラスをリセット
+      segment.classList.remove('completed', 'current');
+      
+      // 完了したタスクのセグメントを塗りつぶす
+      if (completedIndices.includes(index)) {
+        segment.classList.add('completed');
+      }
+      
+      // 現在のタスクのセグメントをハイライト
+      if (index === currentTaskIndex) {
+        segment.classList.add('current');
+      }
+    });
+    
+    console.log('Progress updated:', progress, 'Completed indices:', completedIndices);
   } catch (error) {
     console.error('Error updating progress:', error);
   }
