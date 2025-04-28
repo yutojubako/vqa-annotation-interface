@@ -12,7 +12,7 @@ const SAMPLE_DATA_KEY = 'vqa_sample_data';
 
 // Sample data URL - replace with your actual data source
 // const SAMPLE_DATA_URL = 'assets/captions_v1.json';
-const SAMPLE_DATA_URL = 'assets/captions_v2.json';
+const SAMPLE_DATA_URL = 'assets/captions_v2_fixed.json';
 
 /**
  * Load annotation tasks

@@ -250,12 +250,12 @@ async function loadTasks(limit = null) {
   try {
     // Always try to load from captions_v2.json first
     try {
-      console.log('Loading tasks from captions_v2.json...');
-      const response = await fetch('assets/captions_v2.json');
+      console.log('Loading tasks from captions_v2_fixed.json...');
+      const response = await fetch('assets/captions_v2_fixed.json');
       if (!response.ok) throw new Error('Failed to load sample data');
       
       const data = await response.json();
-      console.log(`Loaded ${data.length} tasks from captions_v2.json`);
+      console.log(`Loaded ${data.length} tasks from captions_v2_fixed.json`);
       
       // Format tasks for the UI
       const formattedTasks = data.map(item => ({
@@ -337,16 +337,16 @@ async function findTaskById(id) {
       
       // For numeric indices, try to load from captions_v2.json first
       try {
-        console.log('Loading from captions_v2.json for numeric index...');
-        const response = await fetch('assets/captions_v2.json');
+        console.log('Loading from captions_v2_fixed.json for numeric index...');
+        const response = await fetch('assets/captions_v2_fixed.json');
         if (!response.ok) throw new Error('Failed to load sample data');
         
         const data = await response.json();
-        console.log(`Loaded ${data.length} items from captions_v2.json`);
+        console.log(`Loaded ${data.length} items from captions_v2_fixed.json`);
         
         // Check if index is within range
         if (index >= 0 && index < data.length) {
-          console.log(`Found item at index ${index} in captions_v2.json`);
+          console.log(`Found item at index ${index} in captions_v2_fixed.json`);
           const item = data[index];
           return {
             imageId: item.url,
@@ -434,11 +434,11 @@ async function findTaskById(id) {
     // If still not found, try to load from sample data
     console.log('Not found in Firestore, trying sample data...');
     try {
-      const response = await fetch('assets/captions_v2.json');
+      const response = await fetch('assets/captions_v2_fixed.json');
       if (!response.ok) throw new Error('Failed to load sample data');
       
       const data = await response.json();
-      console.log(`Loaded ${data.length} items from captions_v2.json for search`);
+      console.log(`Loaded ${data.length} items from captions_v2_fixed.json for search`);
       
       const item = data.find(item => 
         item.url === id || 
@@ -666,7 +666,7 @@ async function getProgress() {
       // If no tasks found in Firestore, try to load from sample data
       if (total === 0) {
         try {
-          const response = await fetch('assets/captions_v2.json');
+          const response = await fetch('assets/captions_v2_fixed.json');
           if (response.ok) {
             const data = await response.json();
             total = data.length;
@@ -681,7 +681,7 @@ async function getProgress() {
       console.error('Error getting tasks for progress:', e);
       // Try to load from sample data
       try {
-        const response = await fetch('assets/captions_v2.json');
+        const response = await fetch('assets/captions_v2_fixed.json');
         if (response.ok) {
           const data = await response.json();
           total = data.length;
