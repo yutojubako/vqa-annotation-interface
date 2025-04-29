@@ -89,6 +89,28 @@ body {
   font-weight: 500;
 }
 
+/* Suggested answer styles */
+.suggested-answer {
+  background-color: #fff8e1;
+  border-color: #ffe082;
+  font-style: italic;
+  color: #666;
+}
+
+.suggested-answer:focus {
+  background-color: #ffffff;
+  color: #000;
+  font-style: normal;
+}
+
+.suggested-answer-note {
+  font-size: 0.8rem;
+  color: #666;
+  margin-top: -5px;
+  margin-bottom: 10px;
+  font-style: italic;
+}
+
 /* Save status indicator */
 #save-status {
   font-style: italic;

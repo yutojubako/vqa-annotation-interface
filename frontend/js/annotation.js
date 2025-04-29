@@ -442,7 +442,28 @@ async function saveCurrentAnnotation(isComplete = false) {
  * @param {Object} savedAnnotation - Saved annotation
  */
 function loadSavedAnswers(savedAnnotation) {
-  if (!savedAnnotation || !savedAnnotation.answers) return;
+  if (!savedAnnotation || !savedAnnotation.answers) {
+    // If no saved annotation, try to load suggested answers
+    const task = currentTasks[currentTaskIndex];
+    if (task && task.questions) {
+      task.questions.forEach(question => {
+        if (question.suggestedAnswer) {
+          const answerInput = document.querySelector(`textarea[data-question-id="${question.id}"]`);
+          if (answerInput) {
+            answerInput.value = question.suggestedAnswer;
+            answerInput.classList.add('suggested-answer');
+            
+            // Add a note below the textarea
+            const noteDiv = document.createElement('div');
+            noteDiv.className = 'suggested-answer-note';
+            noteDiv.textContent = '※参考回答が表示されています。必要に応じて編集してください。';
+            answerInput.parentNode.insertBefore(noteDiv, answerInput.nextSibling);
+          }
+        }
+      });
+    }
+    return;
+  }
   
   // Update current annotation
   currentAnnotation = savedAnnotation;
@@ -452,6 +473,13 @@ function loadSavedAnswers(savedAnnotation) {
     const answerInput = document.querySelector(`textarea[data-question-id="${answer.questionId}"]`);
     if (answerInput) {
       answerInput.value = answer.answer;
+      answerInput.classList.remove('suggested-answer');
+      
+      // Remove note if it exists
+      const noteDiv = answerInput.nextSibling;
+      if (noteDiv && noteDiv.className === 'suggested-answer-note') {
+        noteDiv.parentNode.removeChild(noteDiv);
+      }
     }
     
     const confidenceSelect = document.querySelector(`select[data-question-id="${answer.questionId}"]`);
