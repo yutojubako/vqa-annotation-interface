@@ -975,54 +975,79 @@ async function getProgress() {
   try {
     console.log('Getting annotation progress');
     
-    // Get total tasks from sample data first
+    // Always try to get the total from captions_v2_fixed.json first
     let total = 0;
     try {
-      // First try to get the total from cached_tasks in localStorage
-      const cachedTasks = localStorage.getItem('cached_tasks');
-      if (cachedTasks) {
+      // Always load from captions_v2_fixed.json first to ensure consistent count
+      const response = await fetch('assets/captions_v2_fixed.json');
+      if (response.ok) {
+        const data = await response.json();
+        total = data.length;
+        console.log(`Total tasks from captions_v2_fixed.json: ${total}`);
+        
+        // Cache this value for future use
         try {
-          const tasks = JSON.parse(cachedTasks);
-          total = tasks.length;
-          console.log(`Total tasks from cached_tasks: ${total}`);
-        } catch (parseError) {
-          console.error('Error parsing cached tasks:', parseError);
+          localStorage.setItem('total_tasks_count', total.toString());
+        } catch (cacheError) {
+          console.error('Error caching total tasks count:', cacheError);
         }
-      }
-      
-      // If we still don't have a total, try to load from captions_v2_fixed.json
-      if (total === 0) {
-        const response = await fetch('assets/captions_v2_fixed.json');
-        if (response.ok) {
-          const data = await response.json();
-          total = data.length;
-          console.log(`Total tasks from captions_v2_fixed.json: ${total}`);
-        } else {
-          console.error('Failed to load captions_v2_fixed.json, trying captions_v1.json...');
-          // Try to load from captions_v1.json as fallback
-          const fallbackResponse = await fetch('assets/captions_v1.json');
-          if (fallbackResponse.ok) {
-            const fallbackData = await fallbackResponse.json();
-            total = fallbackData.length;
-            console.log(`Total tasks from captions_v1.json: ${total}`);
+      } else {
+        console.error('Failed to load captions_v2_fixed.json, trying captions_v1.json...');
+        // Try to load from captions_v1.json as fallback
+        const fallbackResponse = await fetch('assets/captions_v1.json');
+        if (fallbackResponse.ok) {
+          const fallbackData = await fallbackResponse.json();
+          total = fallbackData.length;
+          console.log(`Total tasks from captions_v1.json: ${total}`);
+          
+          // Cache this value for future use
+          try {
+            localStorage.setItem('total_tasks_count', total.toString());
+          } catch (cacheError) {
+            console.error('Error caching total tasks count:', cacheError);
           }
         }
       }
     } catch (e) {
       console.error('Error loading sample data for progress:', e);
-    }
-    
-    // If total is still 0, try Firestore
-    if (total === 0) {
+      
+      // If direct loading fails, try to get from cached value
       try {
-        const tasksSnapshot = await db.collection('tasks').get();
-        total = tasksSnapshot.size;
-        console.log(`Total tasks from Firestore: ${total}`);
-      } catch (e) {
-        console.error('Error getting tasks from Firestore for progress:', e);
-        // Use mock data length as fallback
-        total = 10;
-        console.log(`Using fallback total: ${total}`);
+        const cachedTotal = localStorage.getItem('total_tasks_count');
+        if (cachedTotal) {
+          total = parseInt(cachedTotal, 10);
+          console.log(`Using cached total tasks count: ${total}`);
+        }
+      } catch (cacheError) {
+        console.error('Error getting cached total tasks count:', cacheError);
+      }
+      
+      // If still no total, try cached_tasks
+      if (total === 0) {
+        try {
+          const cachedTasks = localStorage.getItem('cached_tasks');
+          if (cachedTasks) {
+            const tasks = JSON.parse(cachedTasks);
+            total = tasks.length;
+            console.log(`Total tasks from cached_tasks: ${total}`);
+          }
+        } catch (parseError) {
+          console.error('Error parsing cached tasks:', parseError);
+        }
+      }
+      
+      // If still no total, try Firestore
+      if (total === 0) {
+        try {
+          const tasksSnapshot = await db.collection('tasks').get();
+          total = tasksSnapshot.size;
+          console.log(`Total tasks from Firestore: ${total}`);
+        } catch (e) {
+          console.error('Error getting tasks from Firestore for progress:', e);
+          // Use a fixed value as last resort
+          total = 100; // Fixed value that matches the expected total
+          console.log(`Using fixed total: ${total}`);
+        }
       }
     }
     
