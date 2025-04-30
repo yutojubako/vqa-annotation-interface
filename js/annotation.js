@@ -402,6 +402,12 @@ function updateAnswer(questionId, questionText, attribute, answer) {
     });
   }
   
+  // 回答が更新されたら、完了クラスを削除
+  const answerInput = document.querySelector(`textarea[data-question-id="${questionId}"]`);
+  if (answerInput) {
+    answerInput.classList.remove('completed-answer');
+  }
+  
   // Update save status
   updateSaveStatus('Unsaved changes', 'warning');
 }
@@ -504,6 +510,11 @@ async function saveCurrentAnnotation(isComplete = false) {
       // Show success message
       if (isComplete) {
         showMessage('Annotation completed and saved successfully!', 'success');
+        
+        // アノテーションが完了した場合、すべての入力欄に完了クラスを追加
+        document.querySelectorAll('textarea[data-question-id]').forEach(textarea => {
+          textarea.classList.add('completed-answer');
+        });
       } else {
         showMessage('Annotation saved successfully!', 'success');
       }
@@ -576,6 +587,13 @@ function loadSavedAnswers(savedAnnotation) {
         const noteDiv = answerInput.nextSibling;
         if (noteDiv && noteDiv.className === 'suggested-answer-note') {
           noteDiv.parentNode.removeChild(noteDiv);
+        }
+        
+        // アノテーションが完了している場合、入力欄に完了クラスを追加
+        if (savedAnnotation.isComplete) {
+          answerInput.classList.add('completed-answer');
+        } else {
+          answerInput.classList.remove('completed-answer');
         }
       }
       
