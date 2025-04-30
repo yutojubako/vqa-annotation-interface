@@ -678,6 +678,10 @@ function initializeProgressBar(totalTasks) {
     segment.dataset.index = i;
     progressContainer.appendChild(segment);
   }
+  
+  // Store the segment count and total tasks for later use
+  progressContainer.dataset.segmentCount = segmentCount;
+  progressContainer.dataset.totalTasks = totalTasks;
 }
 
 /**
@@ -824,13 +828,22 @@ async function updateProgress() {
       // すべてのクラスをリセット
       segment.classList.remove('completed', 'current');
       
-      // 完了したタスクのセグメントを塗りつぶす
-      if (completedIndices.includes(index)) {
+      // Calculate the actual task index this segment represents
+      // For example, if we have 1000 tasks but only 100 segments,
+      // each segment represents 10 tasks
+      const segmentCount = segments.length;
+      const tasksPerSegment = Math.ceil(currentTasks.length / segmentCount);
+      const startTaskIndex = index * tasksPerSegment;
+      const endTaskIndex = Math.min(startTaskIndex + tasksPerSegment - 1, currentTasks.length - 1);
+      
+      // Check if any task in this segment's range is completed
+      const hasCompletedTask = completedIndices.some(idx => idx >= startTaskIndex && idx <= endTaskIndex);
+      if (hasCompletedTask) {
         segment.classList.add('completed');
       }
       
-      // 現在のタスクのセグメントをハイライト
-      if (index === currentTaskIndex) {
+      // Check if current task is in this segment's range
+      if (currentTaskIndex >= startTaskIndex && currentTaskIndex <= endTaskIndex) {
         segment.classList.add('current');
       }
     });
