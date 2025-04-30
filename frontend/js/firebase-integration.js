@@ -317,8 +317,13 @@ function getUsername() {
  * @returns {Array} Saved annotations
  */
 function loadAnnotations() {
-  const data = localStorage.getItem('vqa_annotations');
-  return data ? JSON.parse(data) : [];
+  try {
+    const data = localStorage.getItem('vqa_annotations');
+    return data ? JSON.parse(data) : [];
+  } catch (error) {
+    console.error('Error loading annotations from localStorage:', error);
+    return [];
+  }
 }
 
 /**
@@ -354,82 +359,168 @@ function showMessage(message, type) {
 // Firebase Firestore API functions
 
 /**
+ * Format questions from sample data
+ * @param {Object} item - Sample data item
+ * @returns {Array} Formatted questions
+ */
+function formatQuestions(item) {
+  try {
+    // Check if we have questions by attribute
+    if (item.generated_qa_pairs_by_attribute) {
+      // Flatten questions from all attributes
+      return Object.entries(item.generated_qa_pairs_by_attribute)
+        .flatMap(([attribute, questions]) => 
+          questions.map(q => ({
+            id: generateQuestionId(q.question),
+            question: q.question,
+            attribute: attribute,
+            suggestedAnswer: q.answer
+          }))
+        );
+    } else if (item.generated_qa_pairs) {
+      // Use flat list of questions
+      return item.generated_qa_pairs.map(q => ({
+        id: generateQuestionId(q.question),
+        question: q.question,
+        attribute: q.attribute || 'General',
+        suggestedAnswer: q.answer
+      }));
+    } else {
+      // No questions, generate mock ones
+      return generateMockQuestions();
+    }
+  } catch (error) {
+    console.error('Error formatting questions:', error);
+    return generateMockQuestions();
+  }
+}
+
+/**
+ * Generate a unique ID for a question
+ * @param {string} question - Question text
+ * @returns {string} Unique ID
+ */
+function generateQuestionId(question) {
+  // Create a simple hash from the question text
+  return question
+    .substring(0, 20)
+    .replace(/\W+/g, '_')
+    .toLowerCase() + '_' + Math.random().toString(36).substring(2, 7);
+}
+
+/**
  * Load annotation tasks
  * @param {number} limit - Maximum number of tasks to load (optional)
  * @returns {Promise<Array>} Array of annotation tasks
  */
 async function loadTasks(limit = null) {
   try {
-    // Always try to load from captions_v2.json first
-    try {
-      console.log('Loading tasks from captions_v2_fixed.json...');
-      const response = await fetch('assets/captions_v2_fixed.json');
-      if (!response.ok) throw new Error('Failed to load sample data');
-      
-      const data = await response.json();
-      console.log(`Loaded ${data.length} tasks from captions_v2_fixed.json`);
-      
-      // Format tasks for the UI
-      const formattedTasks = data.map(item => ({
-        imageId: item.url,
-        imageUrl: item.url,
-        caption: item.context,
-        questions: formatQuestions(item)
-      }));
-      
-      // If user is authenticated, try to save tasks to Firestore
-      if (currentUser) {
-        try {
-          console.log('Saving tasks to Firestore...');
-          // Check if tasks already exist in Firestore
-          const snapshot = await db.collection('tasks').get();
-          if (snapshot.empty) {
-            // No tasks in Firestore, add them
-            for (const task of formattedTasks) {
-              await db.collection('tasks').add(task);
-            }
-            console.log(`Saved ${formattedTasks.length} tasks to Firestore`);
-          } else {
-            console.log('Tasks already exist in Firestore, skipping save');
-          }
-        } catch (e) {
-          console.error('Error saving tasks to Firestore:', e);
-          // Continue with the loaded tasks even if saving fails
-        }
+    // Check if we already have tasks in localStorage
+    const cachedTasks = localStorage.getItem('cached_tasks');
+    if (cachedTasks) {
+      console.log('Using cached tasks from localStorage');
+      try {
+        const tasks = JSON.parse(cachedTasks);
+        
+        // Apply limit if specified
+        const limitedTasks = limit ? tasks.slice(0, limit) : tasks;
+        return limitedTasks;
+      } catch (parseError) {
+        console.error('Error parsing cached tasks:', parseError);
+        // Continue to load from file
       }
-      
-      return formattedTasks;
-    } catch (e) {
-      console.error('Error loading from captions_v2.json:', e);
-      
-      // If loading from captions_v2.json fails, try Firestore
-      console.log('Trying to load tasks from Firestore...');
-      const snapshot = await db.collection('tasks').get();
-      
-      // Get all tasks without filtering completed ones
-      const tasks = [];
-      snapshot.forEach(doc => {
-        const task = doc.data();
-        tasks.push({
-          id: doc.id,
-          ...task
-        });
-      });
-      
-      if (tasks.length > 0) {
-        console.log(`Loaded ${tasks.length} tasks from Firestore`);
-        return tasks;
-      }
-      
-      // If no tasks in Firestore either, fall back to mock data
-      console.log('No tasks found, using mock data');
-      return generateMockData();
     }
+    
+    // If no cached tasks, load from file
+    console.log('Loading tasks from captions_v2_fixed.json...');
+    const response = await fetch('assets/captions_v2_fixed.json');
+    
+    if (!response.ok) {
+      throw new Error('Failed to load sample data');
+    }
+    
+    // Read the response as text first
+    const text = await response.text();
+    
+    // Try to parse the JSON
+    let data;
+    try {
+      data = JSON.parse(text);
+      console.log(`Loaded ${data.length} tasks from captions_v2_fixed.json`);
+    } catch (parseError) {
+      console.error('Error parsing JSON:', parseError);
+      throw new Error('Invalid JSON format in captions_v2_fixed.json');
+    }
+    
+    // Get all tasks without filtering completed ones
+    const allTasks = data;
+    
+    // Apply limit only if specified, otherwise load only first 100 tasks by default
+    const limitedTasks = limit ? allTasks.slice(0, limit) : allTasks.slice(0, 100);
+    
+    // Format tasks for the UI
+    const formattedTasks = limitedTasks.map(item => {
+      try {
+        return {
+          imageId: item.url,
+          imageUrl: item.url,
+          caption: item.context,
+          questions: formatQuestions(item)
+        };
+      } catch (itemError) {
+        console.error('Error formatting task:', itemError, item);
+        return null;
+      }
+    }).filter(task => task !== null); // Remove any null tasks
+    
+    // Store the formatted tasks in localStorage for future use
+    try {
+      localStorage.setItem('cached_tasks', JSON.stringify(formattedTasks));
+      console.log('Tasks cached in localStorage');
+    } catch (cacheError) {
+      console.error('Error caching tasks in localStorage:', cacheError);
+      // Continue even if caching fails
+    }
+    
+    // If user is authenticated, try to save tasks to Firestore
+    if (currentUser) {
+      try {
+        console.log('Saving tasks to Firestore...');
+        // Check if tasks already exist in Firestore
+        const snapshot = await db.collection('tasks').get();
+        if (snapshot.empty) {
+          // No tasks in Firestore, add them
+          const batchSize = 20; // Process in batches to avoid overloading Firestore
+          for (let i = 0; i < formattedTasks.length; i += batchSize) {
+            const batch = formattedTasks.slice(i, i + batchSize);
+            await Promise.all(batch.map(task => db.collection('tasks').add(task)));
+            console.log(`Saved batch ${i/batchSize + 1} to Firestore`);
+          }
+          console.log(`Saved ${formattedTasks.length} tasks to Firestore`);
+        } else {
+          console.log('Tasks already exist in Firestore, skipping save');
+        }
+      } catch (e) {
+        console.error('Error saving tasks to Firestore:', e);
+        // Continue with the loaded tasks even if saving fails
+      }
+    }
+    
+    return formattedTasks;
   } catch (error) {
-    console.error('Error in loadTasks:', error);
-    // Final fallback to mock data
-    console.log('Using mock data as final fallback');
-    return generateMockData();
+    console.error('Error loading tasks:', error);
+    // エラー時はモックデータを使用
+    console.log('Using mock data as fallback');
+    const mockData = generateMockData();
+    
+    // Cache mock data for future use
+    try {
+      localStorage.setItem('cached_tasks', JSON.stringify(mockData));
+    } catch (cacheError) {
+      console.error('Error caching mock data:', cacheError);
+    }
+    
+    return mockData;
   }
 }
 
@@ -442,142 +533,139 @@ async function findTaskById(id) {
   try {
     console.log(`Finding task with ID/index: ${id}`);
     
+    // Try to get tasks from localStorage first
+    const cachedTasks = localStorage.getItem('cached_tasks');
+    let data;
+    
+    if (cachedTasks) {
+      console.log('Using cached tasks from localStorage');
+      try {
+        data = JSON.parse(cachedTasks);
+      } catch (parseError) {
+        console.error('Error parsing cached tasks:', parseError);
+        // Continue to load tasks
+        data = await loadTasks();
+      }
+    } else {
+      // If not in localStorage, load tasks
+      console.log('No cached tasks, loading tasks');
+      data = await loadTasks();
+    }
+    
+    if (!data || data.length === 0) {
+      console.log('No tasks available');
+      return null;
+    }
+    
+    console.log(`Working with ${data.length} tasks`);
+    
     // Check if id is a number (0-based index)
     if (!isNaN(parseInt(id))) {
       const index = parseInt(id);
       console.log(`Parsed as numeric index: ${index}`);
       
-      // For numeric indices, try to load from captions_v2.json first
-      try {
-        console.log('Loading from captions_v2_fixed.json for numeric index...');
-        const response = await fetch('assets/captions_v2_fixed.json');
-        if (!response.ok) throw new Error('Failed to load sample data');
-        
-        const data = await response.json();
-        console.log(`Loaded ${data.length} items from captions_v2_fixed.json`);
-        
-        // Check if index is within range
-        if (index >= 0 && index < data.length) {
-          console.log(`Found item at index ${index} in captions_v2_fixed.json`);
-          const item = data[index];
-          return {
-            imageId: item.url,
-            imageUrl: item.url,
-            caption: item.context,
-            questions: formatQuestions(item)
-          };
-        } else {
-          console.log(`Index ${index} out of range (0-${data.length-1})`);
-          
-          // If index is out of range but close to the end, return the last item
-          if (index >= data.length && index < data.length + 10) {
-            console.log(`Index close to end, returning last item (${data.length-1})`);
-            const item = data[data.length - 1];
-            return {
-              imageId: item.url,
-              imageUrl: item.url,
-              caption: item.context,
-              questions: formatQuestions(item)
-            };
-          }
-        }
-      } catch (e) {
-        console.error('Error loading from captions_v2.json:', e);
-        // Continue to try other methods
-      }
-      
-      // If captions_v2.json approach failed, try Firestore
-      console.log('Trying to find task by index in Firestore...');
-      const snapshot = await db.collection('tasks').get();
-      const tasks = [];
-      snapshot.forEach(doc => {
-        tasks.push({ id: doc.id, ...doc.data() });
-      });
-      
-      console.log(`Found ${tasks.length} tasks in Firestore`);
-      
-      // Return task at the specified index if it exists
-      if (index >= 0 && index < tasks.length) {
-        console.log(`Found task at index ${index} in Firestore`);
-        return tasks[index];
+      if (index >= 0 && index < data.length) {
+        console.log(`Found item at index ${index}`);
+        return data[index];
       } else {
-        console.log(`Index ${index} out of range in Firestore (0-${tasks.length-1})`);
-      }
-    }
-    
-    // If not an index or index not found, try to find by ID
-    console.log('Trying to find task by ID in Firestore...');
-    let snapshot = await db.collection('tasks').where('id', '==', id).get();
-    
-    // If not found, try to find by imageId
-    if (snapshot.empty) {
-      console.log('Not found by ID, trying imageId...');
-      snapshot = await db.collection('tasks').where('imageId', '==', id).get();
-    }
-    
-    // If still not found, try to find by imageUrl
-    if (snapshot.empty) {
-      console.log('Not found by imageId, trying imageUrl...');
-      snapshot = await db.collection('tasks').where('imageUrl', '==', id).get();
-    }
-    
-    // If still not found, try to find by partial URL match
-    if (snapshot.empty) {
-      console.log('Not found by exact URL, trying partial URL match...');
-      snapshot = await db.collection('tasks').get();
-      let task = null;
-      snapshot.forEach(doc => {
-        const data = doc.data();
-        if (data.imageUrl && data.imageUrl.includes(id)) {
-          task = { id: doc.id, ...data };
+        console.log(`Index ${index} out of range (0-${data.length-1})`);
+        
+        // If index is out of range but close to the end, return the last item
+        if (index >= data.length && index < data.length + 10) {
+          console.log(`Index close to end, returning last item (${data.length-1})`);
+          return data[data.length - 1];
         }
-      });
-      if (task) {
-        console.log('Found by partial URL match');
-        return task;
       }
-    } else {
-      // Return the first match if found
-      console.log('Found in Firestore');
-      const doc = snapshot.docs[0];
-      return { id: doc.id, ...doc.data() };
     }
     
-    // If still not found, try to load from sample data
-    console.log('Not found in Firestore, trying sample data...');
-    try {
-      const response = await fetch('assets/captions_v2_fixed.json');
-      if (!response.ok) throw new Error('Failed to load sample data');
-      
-      const data = await response.json();
-      console.log(`Loaded ${data.length} items from captions_v2_fixed.json for search`);
-      
-      const item = data.find(item => 
-        item.url === id || 
-        item.url.includes(id) || 
-        (item.id && item.id === id)
-      );
-      
-      if (!item) {
-        console.log('Not found in sample data');
-        return null;
-      }
-      
-      console.log('Found in sample data');
-      return {
-        imageId: item.url,
-        imageUrl: item.url,
-        caption: item.context,
-        questions: formatQuestions ? formatQuestions(item) : []
-      };
-    } catch (e) {
-      console.error('Error finding task in sample data:', e);
+    // Find task by imageId or imageUrl
+    const item = data.find(item => 
+      item.imageId === id || 
+      item.imageUrl === id || 
+      (item.imageId && item.imageId.includes(id)) || 
+      (item.imageUrl && item.imageUrl.includes(id))
+    );
+    
+    if (!item) {
+      console.log('Not found in tasks data');
       return null;
     }
+    
+    console.log('Found in tasks data');
+    return item;
   } catch (error) {
     console.error('Error finding task by ID:', error);
     return null;
   }
+}
+
+/**
+ * Generate mock questions for testing
+ * @param {number} count - Number of questions to generate
+ * @param {string} attribute - Question attribute
+ * @returns {Array} Mock questions
+ */
+function generateMockQuestions(count = 6, attribute = null) {
+  const questions = [
+    {
+      question: 'What is the dominant color of the sky in this image?',
+      answer: 'The dominant color of the sky is blue with some white clouds.',
+      attribute: 'Objects & Attributes'
+    },
+    {
+      question: 'How many mountains can be seen in the panorama?',
+      answer: 'There are approximately 3-4 distinct mountain peaks visible in the panorama.',
+      attribute: 'Objects & Attributes'
+    },
+    {
+      question: 'What is the relative position of the sun in this panorama?',
+      answer: 'The sun appears to be positioned high in the sky, slightly to the right of the center of the panorama.',
+      attribute: 'Spatial Relationships'
+    },
+    {
+      question: 'How is the landscape oriented in relation to the viewer?',
+      answer: 'The landscape stretches around the viewer in a 360-degree view, with mountains visible on the horizon.',
+      attribute: 'Spatial Relationships'
+    },
+    {
+      question: 'What time of day does this panorama appear to be taken?',
+      answer: 'The panorama appears to be taken during daytime, likely in the middle of the day based on the lighting.',
+      attribute: 'View / Scene'
+    },
+    {
+      question: 'Is this an indoor or outdoor scene?',
+      answer: 'This is an outdoor scene showing a natural landscape.',
+      attribute: 'View / Scene'
+    }
+  ];
+  
+  // If attribute is specified, filter questions
+  const filteredQuestions = attribute 
+    ? questions.filter(q => q.attribute === attribute)
+    : questions;
+  
+  // Return requested number of questions
+  return filteredQuestions.slice(0, count);
+}
+
+/**
+ * Generate mock data for testing
+ * @returns {Array} Mock data
+ */
+function generateMockData() {
+  const mockData = [];
+  
+  // Generate 10 mock tasks
+  for (let i = 0; i < 10; i++) {
+    mockData.push({
+      imageId: `mock_image_${i}`,
+      imageUrl: 'https://pannellum.org/images/cerro-toco-01.jpg',
+      caption: `This is a mock panoramic view ${i + 1}.`,
+      questions: generateMockQuestions()
+    });
+  }
+  
+  return mockData;
 }
 
 /**
@@ -587,28 +675,35 @@ async function findTaskById(id) {
  */
 async function saveAnnotation(annotation) {
   try {
-    console.log('Saving annotation with data:', JSON.stringify(annotation));
-    console.log('isComplete flag value:', annotation.isComplete);
+    console.log('Saving annotation with complete status:', annotation.isComplete);
     
     // Always save to localStorage first as a backup
     const annotations = loadAnnotations();
     const index = annotations.findIndex(a => a.imageId === annotation.imageId);
     
+    // Make sure isComplete flag is properly set
+    const annotationToSave = {
+      ...annotation,
+      isComplete: !!annotation.isComplete, // Ensure boolean value
+      lastUpdated: new Date().toISOString()
+    };
+    
     if (index >= 0) {
       annotations[index] = {
         ...annotations[index],
-        ...annotation,
-        lastUpdated: new Date().toISOString()
+        ...annotationToSave
       };
     } else {
-      annotations.push({
-        ...annotation,
-        lastUpdated: new Date().toISOString()
-      });
+      annotations.push(annotationToSave);
     }
     
-    localStorage.setItem('vqa_annotations', JSON.stringify(annotations));
-    console.log('Annotation saved to localStorage successfully');
+    try {
+      localStorage.setItem('vqa_annotations', JSON.stringify(annotations));
+      console.log('Annotation saved to localStorage successfully');
+    } catch (localStorageError) {
+      console.error('Error saving to localStorage:', localStorageError);
+      // Continue even if localStorage fails
+    }
     
     // Check if user is authenticated
     if (!currentUser || !currentUser.id) {
@@ -620,96 +715,79 @@ async function saveAnnotation(annotation) {
       // Show a message to the user
       showMessage('アノテーションはローカルに保存されました。Firebaseに保存するにはログインしてください。', 'warning');
       
-      return annotation;
+      return annotationToSave;
     }
     
     // Add user ID and timestamp
-    annotation.userId = currentUser.id;
-    annotation.lastUpdated = new Date();
-    annotation.createdAt = annotation.createdAt || new Date();
+    annotationToSave.userId = currentUser.id;
+    annotationToSave.createdAt = annotationToSave.createdAt || new Date();
     
     console.log('Saving annotation to Firebase for user:', currentUser.id);
-    console.log('Annotation data being sent to Firebase:', JSON.stringify(annotation));
     
-    // Check if annotation already exists
-    const querySnapshot = await db.collection('annotations')
-      .where('imageId', '==', annotation.imageId)
-      .where('userId', '==', currentUser.id)
-      .get();
-    
-    let result;
-    let docId;
-    
-    if (!querySnapshot.empty) {
-      // Update existing annotation
-      docId = querySnapshot.docs[0].id;
-      console.log('Updating existing annotation with ID:', docId);
-      
-      // Make sure isComplete flag is properly set
-      const annotationToSave = {
-        ...annotation,
-        isComplete: !!annotation.isComplete // Ensure boolean value
-      };
-      
-      await db.collection('annotations').doc(docId).update(annotationToSave);
-      result = { id: docId, ...annotationToSave };
-      console.log('Annotation updated in Firebase with data:', JSON.stringify(result));
-    } else {
-      // Create new annotation
-      console.log('Creating new annotation in Firebase');
-      
-      // Make sure isComplete flag is properly set
-      const annotationToSave = {
-        ...annotation,
-        isComplete: !!annotation.isComplete // Ensure boolean value
-      };
-      
-      const docRef = await db.collection('annotations').add(annotationToSave);
-      docId = docRef.id;
-      console.log('New annotation created with ID:', docId);
-      result = { id: docId, ...annotationToSave };
-      console.log('New annotation saved to Firebase with data:', JSON.stringify(result));
-    }
-    
-    // Verify the save was successful by retrieving the document
     try {
-      const savedDoc = await db.collection('annotations').doc(docId).get();
-      if (savedDoc.exists) {
-        const savedData = savedDoc.data();
-        console.log('Verified annotation was saved successfully to Firebase');
-        console.log('Retrieved data from Firebase:', JSON.stringify(savedData));
-        console.log('isComplete flag in saved data:', savedData.isComplete);
+      // Check if annotation already exists
+      const querySnapshot = await db.collection('annotations')
+        .where('imageId', '==', annotation.imageId)
+        .where('userId', '==', currentUser.id)
+        .get();
+      
+      let result;
+      let docId;
+      
+      if (!querySnapshot.empty) {
+        // Update existing annotation
+        docId = querySnapshot.docs[0].id;
+        console.log('Updating existing annotation with ID:', docId);
         
-        // Show success message to user
-        if (annotation.isComplete) {
-          showMessage('アノテーションが完了し、Firebaseに保存されました！', 'success');
-        } else {
-          showMessage('アノテーションがFirebaseに保存されました', 'success');
-        }
+        await db.collection('annotations').doc(docId).update(annotationToSave);
+        result = { id: docId, ...annotationToSave };
+        console.log('Annotation updated in Firebase');
       } else {
-        throw new Error('Document does not exist after save');
+        // Create new annotation
+        console.log('Creating new annotation in Firebase');
+        
+        const docRef = await db.collection('annotations').add(annotationToSave);
+        docId = docRef.id;
+        console.log('New annotation created with ID:', docId);
+        result = { id: docId, ...annotationToSave };
       }
-    } catch (verifyError) {
-      console.error('Error verifying annotation save:', verifyError);
-      showMessage('アノテーションの保存は成功しましたが、検証中にエラーが発生しました', 'warning');
-      // Continue with the result even if verification fails
+      
+      // Verify the save was successful by retrieving the document
+      try {
+        const savedDoc = await db.collection('annotations').doc(docId).get();
+        if (savedDoc.exists) {
+          const savedData = savedDoc.data();
+          console.log('Verified annotation was saved successfully to Firebase');
+          console.log('isComplete flag in saved data:', savedData.isComplete);
+          
+          // Show success message to user
+          if (annotation.isComplete) {
+            showMessage('アノテーションが完了し、Firebaseに保存されました！', 'success');
+          } else {
+            showMessage('アノテーションがFirebaseに保存されました', 'success');
+          }
+        } else {
+          throw new Error('Document does not exist after save');
+        }
+      } catch (verifyError) {
+        console.error('Error verifying annotation save:', verifyError);
+        showMessage('アノテーションの保存は成功しましたが、検証中にエラーが発生しました', 'warning');
+        // Continue with the result even if verification fails
+      }
+      
+      return result;
+    } catch (firebaseError) {
+      console.error('Error saving to Firebase:', firebaseError);
+      showMessage('Firebaseへの保存中にエラーが発生しました。ローカルに保存されています。', 'danger');
+      
+      // Return the annotation from localStorage as fallback
+      return annotationToSave;
     }
-    
-    return result;
   } catch (error) {
-    console.error('Error saving annotation to Firebase:', error);
-    showMessage('Firebaseへの保存中にエラーが発生しました。ローカルに保存されています。', 'danger');
+    console.error('Error in saveAnnotation:', error);
+    showMessage('アノテーションの保存中にエラーが発生しました。', 'danger');
     
-    // Return the annotation from localStorage as fallback
-    const annotations = loadAnnotations();
-    const savedAnnotation = annotations.find(a => a.imageId === annotation.imageId);
-    
-    if (savedAnnotation) {
-      console.log('Returning annotation from localStorage as fallback');
-      return savedAnnotation;
-    }
-    
-    // If not found in localStorage, return the original annotation
+    // Return the original annotation
     return annotation;
   }
 }
@@ -728,7 +806,7 @@ async function getAnnotation(imageId) {
     const localAnnotation = annotations.find(a => a.imageId === imageId);
     
     if (localAnnotation) {
-      console.log('Found annotation in localStorage:', JSON.stringify(localAnnotation));
+      console.log('Found annotation in localStorage');
       console.log('isComplete flag in localStorage:', localAnnotation.isComplete);
     } else {
       console.log('No annotation found in localStorage');
@@ -741,87 +819,85 @@ async function getAnnotation(imageId) {
     }
     
     // User is authenticated, try to get annotation from Firestore
-    console.log('Fetching annotation from Firestore for user:', currentUser.id);
-    const querySnapshot = await db.collection('annotations')
-      .where('imageId', '==', imageId)
-      .where('userId', '==', currentUser.id)
-      .get();
-    
-    if (querySnapshot.empty) {
-      console.log('No annotation found in Firestore');
+    try {
+      console.log('Fetching annotation from Firestore for user:', currentUser.id);
+      const querySnapshot = await db.collection('annotations')
+        .where('imageId', '==', imageId)
+        .where('userId', '==', currentUser.id)
+        .get();
       
-      // If found in localStorage, save it to Firestore
-      if (localAnnotation) {
-        console.log('Found annotation in localStorage, saving to Firestore');
+      if (querySnapshot.empty) {
+        console.log('No annotation found in Firestore');
         
-        // Save the local annotation to Firestore
-        try {
-          // Make sure isComplete flag is properly set
-          const annotationToSave = {
-            ...localAnnotation,
-            userId: currentUser.id,
-            lastUpdated: new Date(),
-            createdAt: localAnnotation.createdAt || new Date(),
-            isComplete: !!localAnnotation.isComplete // Ensure boolean value
-          };
+        // If found in localStorage, save it to Firestore
+        if (localAnnotation) {
+          console.log('Found annotation in localStorage, saving to Firestore');
           
-          console.log('Saving localStorage annotation to Firestore:', JSON.stringify(annotationToSave));
-          
-          const docRef = await db.collection('annotations').add(annotationToSave);
-          console.log('Saved localStorage annotation to Firestore with ID:', docRef.id);
-          
-          return { id: docRef.id, ...annotationToSave };
-        } catch (e) {
-          console.error('Error saving localStorage annotation to Firestore:', e);
-          return localAnnotation;
+          // Save the local annotation to Firestore
+          try {
+            // Make sure isComplete flag is properly set
+            const annotationToSave = {
+              ...localAnnotation,
+              userId: currentUser.id,
+              lastUpdated: new Date(),
+              createdAt: localAnnotation.createdAt || new Date(),
+              isComplete: !!localAnnotation.isComplete // Ensure boolean value
+            };
+            
+            const docRef = await db.collection('annotations').add(annotationToSave);
+            console.log('Saved localStorage annotation to Firestore with ID:', docRef.id);
+            
+            return { id: docRef.id, ...annotationToSave };
+          } catch (e) {
+            console.error('Error saving localStorage annotation to Firestore:', e);
+            return localAnnotation;
+          }
         }
+        
+        return null;
       }
       
-      return null;
+      const doc = querySnapshot.docs[0];
+      console.log('Found annotation in Firestore with ID:', doc.id);
+      const annotationData = doc.data();
+      console.log('isComplete flag in Firestore data:', annotationData.isComplete);
+      
+      // Convert Firestore timestamps to ISO strings for consistent handling
+      if (annotationData.lastUpdated && typeof annotationData.lastUpdated.toDate === 'function') {
+        annotationData.lastUpdated = annotationData.lastUpdated.toDate().toISOString();
+      }
+      if (annotationData.createdAt && typeof annotationData.createdAt.toDate === 'function') {
+        annotationData.createdAt = annotationData.createdAt.toDate().toISOString();
+      }
+      
+      // Update localStorage with the Firestore data for backup
+      try {
+        const index = annotations.findIndex(a => a.imageId === imageId);
+        const annotationWithId = { id: doc.id, ...annotationData };
+        
+        if (index >= 0) {
+          annotations[index] = annotationWithId;
+        } else {
+          annotations.push(annotationWithId);
+        }
+        
+        localStorage.setItem('vqa_annotations', JSON.stringify(annotations));
+        console.log('Updated localStorage with Firestore data');
+      } catch (localStorageError) {
+        console.error('Error updating localStorage:', localStorageError);
+        // Continue even if localStorage update fails
+      }
+      
+      return { id: doc.id, ...annotationData };
+    } catch (firebaseError) {
+      console.error('Error fetching from Firestore:', firebaseError);
+      
+      // Fallback to localStorage
+      console.warn('Falling back to localStorage for annotation retrieval');
+      return localAnnotation || null;
     }
-    
-    const doc = querySnapshot.docs[0];
-    console.log('Found annotation in Firestore with ID:', doc.id);
-    const annotationData = doc.data();
-    console.log('Retrieved data from Firestore:', JSON.stringify(annotationData));
-    console.log('isComplete flag in Firestore data:', annotationData.isComplete);
-    
-    // Convert Firestore timestamps to ISO strings for consistent handling
-    if (annotationData.lastUpdated && typeof annotationData.lastUpdated.toDate === 'function') {
-      annotationData.lastUpdated = annotationData.lastUpdated.toDate().toISOString();
-    }
-    if (annotationData.createdAt && typeof annotationData.createdAt.toDate === 'function') {
-      annotationData.createdAt = annotationData.createdAt.toDate().toISOString();
-    }
-    
-    // Update localStorage with the Firestore data for backup
-    const index = annotations.findIndex(a => a.imageId === imageId);
-    const annotationWithId = { id: doc.id, ...annotationData };
-    
-    if (index >= 0) {
-      annotations[index] = annotationWithId;
-    } else {
-      annotations.push(annotationWithId);
-    }
-    
-    localStorage.setItem('vqa_annotations', JSON.stringify(annotations));
-    console.log('Updated localStorage with Firestore data');
-    
-    return annotationWithId;
   } catch (error) {
-    console.error('Error getting annotation:', error);
-    
-    // Fallback to localStorage
-    console.warn('Falling back to localStorage for annotation retrieval');
-    const annotations = loadAnnotations();
-    const localAnnotation = annotations.find(a => a.imageId === imageId);
-    
-    if (localAnnotation) {
-      console.log('Returning annotation from localStorage as fallback:', JSON.stringify(localAnnotation));
-    } else {
-      console.log('No annotation found in localStorage as fallback');
-    }
-    
+    console.error('Error in getAnnotation:', error);
     return localAnnotation || null;
   }
 }
@@ -878,23 +954,43 @@ async function getProgress() {
     
     // Try to get completed annotations from Firestore
     try {
-      const completedSnapshot = await db.collection('annotations')
+      // Get all annotations for the current user
+      const userAnnotationsSnapshot = await db.collection('annotations')
         .where('userId', '==', currentUser.id)
-        .where('isComplete', '==', true)
         .get();
-      const completed = completedSnapshot.size;
+      
+      // Process annotations to count completed and in-progress
+      let completed = 0;
+      let inProgress = 0;
+      let completedAnnotations = [];
+      let inProgressAnnotations = [];
+      
+      userAnnotationsSnapshot.forEach(doc => {
+        const data = doc.data();
+        // Check isComplete flag - handle different types (boolean, string, number)
+        const isCompleteFlag = data.isComplete;
+        console.log(`Annotation ${doc.id} isComplete flag:`, isCompleteFlag, `(type: ${typeof isCompleteFlag})`);
+        
+        // Convert to boolean properly
+        const isComplete = (isCompleteFlag === true || isCompleteFlag === 'true' || isCompleteFlag === 1);
+        
+        if (isComplete) {
+          completed++;
+          completedAnnotations.push({ id: doc.id, ...data });
+        } else {
+          inProgress++;
+          inProgressAnnotations.push({ id: doc.id, ...data });
+        }
+      });
       
       // Debug: log completed annotations
       console.log(`Found ${completed} completed annotations in Firestore`);
-      completedSnapshot.forEach(doc => {
-        console.log(`Completed annotation ${doc.id}:`, JSON.stringify(doc.data()));
+      completedAnnotations.forEach(annotation => {
+        console.log(`Completed annotation ${annotation.id}:`, JSON.stringify(annotation));
       });
       
-      const inProgressSnapshot = await db.collection('annotations')
-        .where('userId', '==', currentUser.id)
-        .where('isComplete', '==', false)
-        .get();
-      const inProgress = inProgressSnapshot.size;
+      // Debug: log in-progress annotations
+      console.log(`Found ${inProgress} in-progress annotations in Firestore`);
       
       // Debug: log in-progress annotations
       console.log(`Found ${inProgress} in-progress annotations in Firestore`);
