@@ -419,7 +419,7 @@ async function saveCurrentAnnotation(isComplete = false) {
     await saveAnnotation(currentAnnotation);
     
     // Update save status
-    updateSaveStatus('All changes saved', 'success');
+    updateSaveStatus('All changes saved', 'success', true);
     
     // Update progress
     await updateProgress();
@@ -608,17 +608,18 @@ function loadNextTask() {
 }
 
 /**
- * Update save status indicator
+ * Update save status only when explicitly saving
  * @param {string} message - Status message
  * @param {string} type - Status type (success, warning, danger, info)
+ * @param {boolean} isExplicit - Whether the status is explicitly set
  */
-function updateSaveStatus(message, type) {
+function updateSaveStatus(message, type, isExplicit = false) {
   const saveStatus = document.getElementById('save-status');
   saveStatus.textContent = message;
-  
+
   // Remove all status classes
   saveStatus.classList.remove('text-success', 'text-warning', 'text-danger', 'text-info');
-  
+
   // Add appropriate class
   switch (type) {
     case 'success':
@@ -633,6 +634,14 @@ function updateSaveStatus(message, type) {
     case 'info':
       saveStatus.classList.add('text-info');
       break;
+  }
+
+  // Clear the message after a delay if not explicitly set
+  if (!isExplicit) {
+    setTimeout(() => {
+      saveStatus.textContent = '';
+      saveStatus.classList.remove('text-success', 'text-warning', 'text-danger', 'text-info');
+    }, 3000);
   }
 }
 
