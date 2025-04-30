@@ -16,10 +16,8 @@ let saveTimeout = null;
  * Initialize the annotation interface
  */
 async function initAnnotation() {
-  // Check if user is authenticated
-  if (typeof checkAuth === 'function' && !checkAuth()) {
-    return;
-  }
+  // We'll initialize the annotation interface regardless of authentication status
+  // Firebase integration will handle authentication and show the login modal if needed
   
   try {
     // Show loading state
