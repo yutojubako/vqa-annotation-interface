@@ -37,6 +37,7 @@ if (typeof firebaseConfig === 'undefined') {
 try {
   firebase.initializeApp(firebaseConfig);
   console.log('Firebase initialized successfully');
+  console.log('Firebase integration module loaded at:', new Date().toISOString());
 } catch (error) {
   console.error('Error initializing Firebase:', error);
 }
@@ -500,6 +501,7 @@ async function saveAnnotation(annotation) {
       }
       
       localStorage.setItem('vqa_annotations', JSON.stringify(annotations));
+      console.log('Annotation saved to localStorage only (not authenticated):', annotation);
       return annotation;
     }
     
@@ -518,10 +520,11 @@ async function saveAnnotation(annotation) {
       .get();
     
     let result;
+    let docId;
     
     if (!querySnapshot.empty) {
       // Update existing annotation
-      const docId = querySnapshot.docs[0].id;
+      docId = querySnapshot.docs[0].id;
       console.log('Updating existing annotation with ID:', docId);
       await db.collection('annotations').doc(docId).update(annotation);
       result = { id: docId, ...annotation };
@@ -529,11 +532,23 @@ async function saveAnnotation(annotation) {
       // Create new annotation
       console.log('Creating new annotation in Firebase');
       const docRef = await db.collection('annotations').add(annotation);
-      console.log('New annotation created with ID:', docRef.id);
-      result = { id: docRef.id, ...annotation };
+      docId = docRef.id;
+      console.log('New annotation created with ID:', docId);
+      result = { id: docId, ...annotation };
     }
     
-    console.log('Annotation saved successfully to Firebase');
+    // Verify the save was successful by retrieving the document
+    try {
+      const savedDoc = await db.collection('annotations').doc(docId).get();
+      if (savedDoc.exists) {
+        console.log('Verified annotation was saved successfully to Firebase');
+      } else {
+        throw new Error('Document does not exist after save');
+      }
+    } catch (verifyError) {
+      console.error('Error verifying annotation save:', verifyError);
+      throw verifyError; // Re-throw to trigger the fallback
+    }
     
     // Also save to localStorage as a backup
     try {
@@ -575,6 +590,7 @@ async function saveAnnotation(annotation) {
     }
     
     localStorage.setItem('vqa_annotations', JSON.stringify(annotations));
+    console.log('Annotation saved to localStorage as fallback:', annotation);
     return annotation;
   }
 }
@@ -628,7 +644,14 @@ async function getAnnotation(imageId) {
           const docRef = await db.collection('annotations').add(localAnnotation);
           console.log('Saved localStorage annotation to Firestore with ID:', docRef.id);
           
-          return { id: docRef.id, ...localAnnotation };
+          // Verify the save was successful
+          const savedDoc = await db.collection('annotations').doc(docRef.id).get();
+          if (savedDoc.exists) {
+            console.log('Verified localStorage annotation was saved to Firestore');
+            return { id: docRef.id, ...localAnnotation };
+          } else {
+            throw new Error('Document does not exist after save');
+          }
         } catch (e) {
           console.error('Error saving localStorage annotation to Firestore:', e);
           return localAnnotation;
@@ -640,7 +663,27 @@ async function getAnnotation(imageId) {
     
     const doc = querySnapshot.docs[0];
     console.log('Found annotation in Firestore with ID:', doc.id);
-    return { id: doc.id, ...doc.data() };
+    const annotationData = doc.data();
+    
+    // Also update localStorage with the Firestore data for backup
+    try {
+      const annotations = loadAnnotations();
+      const index = annotations.findIndex(a => a.imageId === imageId);
+      const annotationWithId = { id: doc.id, ...annotationData };
+      
+      if (index >= 0) {
+        annotations[index] = annotationWithId;
+      } else {
+        annotations.push(annotationWithId);
+      }
+      
+      localStorage.setItem('vqa_annotations', JSON.stringify(annotations));
+      console.log('Updated localStorage with Firestore data');
+    } catch (e) {
+      console.warn('Failed to update localStorage with Firestore data:', e);
+    }
+    
+    return { id: doc.id, ...annotationData };
   } catch (error) {
     console.error('Error getting annotation:', error);
     

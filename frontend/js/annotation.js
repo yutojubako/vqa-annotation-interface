@@ -427,6 +427,7 @@ function scheduleAutoSave() {
   }
   
   saveTimeout = setTimeout(() => {
+    console.log('Auto-saving annotation...');
     // Auto-save always sets isComplete to false to avoid marking as complete automatically
     saveCurrentAnnotation(false);
   }, 3000); // Auto-save after 3 seconds of inactivity
@@ -444,20 +445,76 @@ async function saveCurrentAnnotation(isComplete = false) {
     // Update completion status
     currentAnnotation.isComplete = isComplete;
     
+    // Ensure we have answers for all questions
+    const allQuestions = [];
+    currentTasks[currentTaskIndex].questions.forEach(q => {
+      allQuestions.push(q);
+    });
+    
+    // Check if we have answers for all questions
+    const answeredQuestionIds = currentAnnotation.answers.map(a => a.questionId);
+    const unansweredQuestions = allQuestions.filter(q => !answeredQuestionIds.includes(q.id));
+    
+    // If there are unanswered questions and this is a complete submission, add default answers
+    if (isComplete && unansweredQuestions.length > 0) {
+      unansweredQuestions.forEach(q => {
+        // Get the textarea for this question
+        const textarea = document.querySelector(`textarea[data-question-id="${q.id}"]`);
+        let answer = '';
+        
+        if (textarea && textarea.value) {
+          // Use the value in the textarea
+          answer = textarea.value;
+        } else if (q.suggestedAnswer) {
+          // Use the suggested answer if available
+          answer = q.suggestedAnswer;
+        }
+        
+        // Add the answer
+        currentAnnotation.answers.push({
+          questionId: q.id,
+          question: q.question,
+          attribute: q.attribute,
+          answer: answer,
+          confidence: 3 // Default confidence
+        });
+      });
+    }
+    
+    console.log('Saving annotation with complete status:', isComplete);
+    console.log('Annotation data before save:', JSON.stringify(currentAnnotation));
+    
     // Save annotation
-    await saveAnnotation(currentAnnotation);
+    const savedAnnotation = await saveAnnotation(currentAnnotation);
     
-    // Update save status
-    updateSaveStatus('All changes saved', 'success', true);
-    
-    // Update progress
-    await updateProgress();
-    
-    // Move to next task if completed
-    if (isComplete && currentTaskIndex < currentTasks.length - 1) {
-      loadNextTask();
-    } else if (isComplete && currentTaskIndex >= currentTasks.length - 1) {
-      showMessage('All tasks completed! Thank you for your contributions.', 'success');
+    // Verify the save was successful
+    if (savedAnnotation) {
+      console.log('Annotation saved successfully:', savedAnnotation);
+      
+      // Update current annotation with saved data (including any ID)
+      currentAnnotation = savedAnnotation;
+      
+      // Update save status
+      updateSaveStatus('All changes saved', 'success', true);
+      
+      // Show success message
+      if (isComplete) {
+        showMessage('Annotation completed and saved successfully!', 'success');
+      } else {
+        showMessage('Annotation saved successfully!', 'success');
+      }
+      
+      // Update progress
+      await updateProgress();
+      
+      // Move to next task if completed
+      if (isComplete && currentTaskIndex < currentTasks.length - 1) {
+        loadNextTask();
+      } else if (isComplete && currentTaskIndex >= currentTasks.length - 1) {
+        showMessage('All tasks completed! Thank you for your contributions.', 'success');
+      }
+    } else {
+      throw new Error('Save returned empty result');
     }
   } catch (error) {
     console.error('Error saving annotation:', error);
@@ -472,6 +529,7 @@ async function saveCurrentAnnotation(isComplete = false) {
  */
 function loadSavedAnswers(savedAnnotation) {
   if (!savedAnnotation || !savedAnnotation.answers) {
+    console.log('No saved annotation found, loading suggested answers if available');
     // If no saved annotation, try to load suggested answers
     const task = currentTasks[currentTaskIndex];
     if (task && task.questions) {
@@ -487,6 +545,9 @@ function loadSavedAnswers(savedAnnotation) {
             noteDiv.className = 'suggested-answer-note';
             noteDiv.textContent = '※参考回答が表示されています。必要に応じて編集してください。';
             answerInput.parentNode.insertBefore(noteDiv, answerInput.nextSibling);
+            
+            // Also update the current annotation with suggested answers
+            updateAnswer(question.id, question.question, question.attribute, question.suggestedAnswer);
           }
         }
       });
@@ -494,31 +555,38 @@ function loadSavedAnswers(savedAnnotation) {
     return;
   }
   
+  console.log('Loading saved annotation:', savedAnnotation);
+  
   // Update current annotation
   currentAnnotation = savedAnnotation;
   
   // Populate form with saved answers
-  savedAnnotation.answers.forEach(answer => {
-    const answerInput = document.querySelector(`textarea[data-question-id="${answer.questionId}"]`);
-    if (answerInput) {
-      answerInput.value = answer.answer;
-      answerInput.classList.remove('suggested-answer');
-      
-      // Remove note if it exists
-      const noteDiv = answerInput.nextSibling;
-      if (noteDiv && noteDiv.className === 'suggested-answer-note') {
-        noteDiv.parentNode.removeChild(noteDiv);
+  if (savedAnnotation.answers && savedAnnotation.answers.length > 0) {
+    savedAnnotation.answers.forEach(answer => {
+      const answerInput = document.querySelector(`textarea[data-question-id="${answer.questionId}"]`);
+      if (answerInput) {
+        answerInput.value = answer.answer;
+        answerInput.classList.remove('suggested-answer');
+        
+        // Remove note if it exists
+        const noteDiv = answerInput.nextSibling;
+        if (noteDiv && noteDiv.className === 'suggested-answer-note') {
+          noteDiv.parentNode.removeChild(noteDiv);
+        }
       }
-    }
+      
+      const confidenceSelect = document.querySelector(`select[data-question-id="${answer.questionId}"]`);
+      if (confidenceSelect) {
+        confidenceSelect.value = answer.confidence || 3;
+      }
+    });
     
-    const confidenceSelect = document.querySelector(`select[data-question-id="${answer.questionId}"]`);
-    if (confidenceSelect) {
-      confidenceSelect.value = answer.confidence;
-    }
-  });
-  
-  // Update save status
-  updateSaveStatus('All changes saved', 'success');
+    // Update save status
+    updateSaveStatus('All changes saved', 'success');
+    console.log('Saved answers loaded successfully');
+  } else {
+    console.log('Saved annotation has no answers array or it is empty');
+  }
 }
 
 /**
