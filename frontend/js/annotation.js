@@ -23,13 +23,15 @@ async function initAnnotation() {
     // Show loading state
     showLoading(true);
     
-    // Load tasks from API without limit
-    currentTasks = await loadTasks();
+    // Load tasks from API without limit - ensure we load all available tasks
+    currentTasks = await loadTasks(null);
     
     // Even if no tasks are available, don't show warning and continue
     // This allows for jumping to specific samples even if the initial task list is empty
     if (currentTasks.length === 0) {
       console.log('No tasks loaded initially, but continuing to allow sample jumps');
+    } else {
+      console.log(`Loaded ${currentTasks.length} tasks successfully`);
     }
     
     // Load progress
@@ -100,6 +102,27 @@ async function loadTask(index) {
     const savedAnnotation = await getAnnotation(task.imageId);
     if (savedAnnotation) {
       loadSavedAnswers(savedAnnotation);
+      
+      // Update the current annotation's isComplete flag
+      currentAnnotation.isComplete = savedAnnotation.isComplete;
+      
+      // If the annotation is complete, update the UI accordingly
+      if (savedAnnotation.isComplete) {
+        // Update the Save & Complete button
+        const saveBtn = document.getElementById('save-btn');
+        saveBtn.classList.add('btn-success');
+        saveBtn.classList.remove('btn-primary');
+        saveBtn.setAttribute('data-completed', 'true');
+        saveBtn.textContent = '✓ Completed ✓';
+        
+        // Show the completion indicator
+        showCompletionIndicator();
+        
+        // Add completed-answer class to all textareas
+        document.querySelectorAll('textarea[data-question-id]').forEach(textarea => {
+          textarea.classList.add('completed-answer');
+        });
+      }
     } else {
       // Reset save status if no saved annotation
       document.getElementById('save-status').textContent = '';
@@ -507,27 +530,26 @@ async function saveCurrentAnnotation(isComplete = false) {
       // Update save status
       updateSaveStatus('All changes saved', 'success', true);
       
-      // Show success message
+      // アノテーションが完了した場合、すべての入力欄に完了クラスを追加
       if (isComplete) {
-        showMessage('Annotation completed and saved successfully!', 'success');
-        
-        // アノテーションが完了した場合、すべての入力欄に完了クラスを追加
         document.querySelectorAll('textarea[data-question-id]').forEach(textarea => {
           textarea.classList.add('completed-answer');
         });
-      } else {
-        showMessage('Annotation saved successfully!', 'success');
+        
+        // Save & Complete ボタンの状態も更新
+        const saveBtn = document.getElementById('save-btn');
+        saveBtn.classList.add('btn-success');
+        saveBtn.classList.remove('btn-primary');
+        saveBtn.setAttribute('data-completed', 'true');
+        saveBtn.textContent = '✓ Completed ✓';
+        
+        // No completion indicator is shown as per user request
       }
       
       // Update progress
       await updateProgress();
       
-      // Move to next task if completed
-      if (isComplete && currentTaskIndex < currentTasks.length - 1) {
-        loadNextTask();
-      } else if (isComplete && currentTaskIndex >= currentTasks.length - 1) {
-        showMessage('All tasks completed! Thank you for your contributions.', 'success');
-      }
+      // Don't show any message when saving or completing an annotation
     } else {
       throw new Error('Save returned empty result');
     }
@@ -605,6 +627,32 @@ function loadSavedAnswers(savedAnnotation) {
     
     // Update save status
     updateSaveStatus('All changes saved', 'success');
+    
+  // If the annotation is complete, update the Save & Complete button
+  if (savedAnnotation.isComplete) {
+    const saveBtn = document.getElementById('save-btn');
+    saveBtn.classList.add('btn-success');
+    saveBtn.classList.remove('btn-primary');
+    saveBtn.setAttribute('data-completed', 'true');
+    saveBtn.textContent = '✓ Completed ✓';
+    
+    // Always show the completion indicator for completed annotations
+    showCompletionIndicator();
+    } else {
+      // Reset the button if not complete
+      const saveBtn = document.getElementById('save-btn');
+      saveBtn.classList.remove('btn-success');
+      saveBtn.classList.add('btn-primary');
+      saveBtn.removeAttribute('data-completed');
+      saveBtn.textContent = 'Save & Complete';
+      
+      // Remove the completion indicator if it exists
+      const completionIndicator = document.getElementById('completion-indicator');
+      if (completionIndicator) {
+        completionIndicator.remove();
+      }
+    }
+    
     console.log('Saved answers loaded successfully');
   } else {
     console.log('Saved annotation has no answers array or it is empty');
@@ -638,23 +686,82 @@ function initializeProgressBar(totalTasks) {
  */
 async function getCompletedIndices() {
   try {
-    // 保存されたアノテーションを取得
-    const annotations = loadAnnotations ? loadAnnotations() : [];
+    // Get completed annotations from both localStorage and Firestore
+    let completedImageIds = [];
     
-    // 完了したアノテーションのimageIdを取得
-    const completedImageIds = annotations
-      .filter(a => a.isComplete)
+    // First, get from localStorage
+    const localAnnotations = loadAnnotations ? loadAnnotations() : [];
+    const localCompletedImageIds = localAnnotations
+      .filter(a => a.isComplete === true)
       .map(a => a.imageId);
     
-    // imageIdに対応するタスクのインデックスを取得
+    completedImageIds = [...localCompletedImageIds];
+    
+    // Then, if user is authenticated, get from Firestore
+    if (typeof currentUser !== 'undefined' && currentUser && currentUser.id) {
+      try {
+        // Get all annotations for the current user from Firestore
+        const userAnnotationsSnapshot = await db.collection('annotations')
+          .where('userId', '==', currentUser.id)
+          .get();
+        
+        // Process annotations to find completed ones
+        userAnnotationsSnapshot.forEach(doc => {
+          const data = doc.data();
+          // Check isComplete flag - handle different types (boolean, string, number)
+          const isCompleteFlag = data.isComplete;
+          
+          // Convert to boolean properly
+          const isComplete = (isCompleteFlag === true || isCompleteFlag === 'true' || isCompleteFlag === 1);
+          
+          if (isComplete && data.imageId) {
+            // Add to completedImageIds if not already included
+            if (!completedImageIds.includes(data.imageId)) {
+              completedImageIds.push(data.imageId);
+            }
+          }
+        });
+      } catch (e) {
+        console.error('Error getting completed annotations from Firestore:', e);
+        // Continue with localStorage data
+      }
+    }
+    
+    // Log the completed image IDs for debugging
+    console.log('Completed image IDs:', completedImageIds);
+    
+    // Get the indices of the completed tasks
     const completedIndices = currentTasks
       .map((task, index) => ({ task, index }))
       .filter(item => completedImageIds.includes(item.task.imageId))
       .map(item => item.index);
     
+    console.log('Completed indices:', completedIndices);
+    
+    // Store the completed indices in localStorage for persistence
+    try {
+      localStorage.setItem('completed_indices', JSON.stringify(completedIndices));
+      console.log('Completed indices cached in localStorage');
+    } catch (cacheError) {
+      console.error('Error caching completed indices:', cacheError);
+    }
+    
     return completedIndices;
   } catch (error) {
     console.error('Error getting completed indices:', error);
+    
+    // Try to get from localStorage as fallback
+    try {
+      const cachedIndices = localStorage.getItem('completed_indices');
+      if (cachedIndices) {
+        const indices = JSON.parse(cachedIndices);
+        console.log('Using cached completed indices from localStorage:', indices);
+        return indices;
+      }
+    } catch (e) {
+      console.error('Error getting cached completed indices:', e);
+    }
+    
     return [];
   }
 }
@@ -664,21 +771,53 @@ async function getCompletedIndices() {
  */
 async function updateProgress() {
   try {
+    // Get progress from API
     const progress = await getProgress();
     
     // Update original progress bar (for compatibility)
     const progressBar = document.getElementById('progress-bar');
     const progressText = document.getElementById('progress-text');
     
-    const progressPercent = progress.total > 0 ? (progress.completed / progress.total) * 100 : 0;
+    // Get completed indices to calculate the actual number of completed tasks
+    let completedIndices = [];
+    try {
+      const cachedIndices = localStorage.getItem('completed_indices');
+      if (cachedIndices) {
+        completedIndices = JSON.parse(cachedIndices);
+      } else {
+        completedIndices = await getCompletedIndices();
+      }
+    } catch (e) {
+      console.error('Error getting completed indices for progress text:', e);
+      completedIndices = await getCompletedIndices();
+    }
+    
+    // Use the length of completedIndices as the completed count
+    const completed = completedIndices.length;
+    const total = progress.total;
+    
+    const progressPercent = total > 0 ? (completed / total) * 100 : 0;
     progressBar.style.width = `${progressPercent}%`;
-    progressText.textContent = `${progress.completed}/${progress.total} images annotated`;
+    progressText.textContent = `${completed}/${total} images annotated`;
+    
+    // Store the progress in localStorage for persistence
+    try {
+      localStorage.setItem('progress_data', JSON.stringify({ completed, total }));
+    } catch (e) {
+      console.error('Error storing progress data in localStorage:', e);
+    }
     
     // Update segmented progress bar
     const segments = document.querySelectorAll('.progress-segment');
     
-    // 完了したアノテーションのインデックスを取得
-    const completedIndices = await getCompletedIndices();
+    // We already have completedIndices from above, no need to get them again
+    
+    // Add current index to completed indices if it's marked as complete
+    if (currentAnnotation && currentAnnotation.isComplete && !completedIndices.includes(currentTaskIndex)) {
+      completedIndices.push(currentTaskIndex);
+      // Update the cache
+      localStorage.setItem('completed_indices', JSON.stringify(completedIndices));
+    }
     
     // 各セグメントを更新
     segments.forEach((segment, index) => {
@@ -709,6 +848,8 @@ function loadPreviousTask() {
   if (currentTaskIndex > 0) {
     saveCurrentAnnotation(false).then(() => {
       loadTask(currentTaskIndex - 1);
+      // Update progress after loading the task
+      updateProgress();
     });
   }
 }
@@ -720,6 +861,8 @@ function loadNextTask() {
   if (currentTaskIndex < currentTasks.length - 1) {
     saveCurrentAnnotation(false).then(() => {
       loadTask(currentTaskIndex + 1);
+      // Update progress after loading the task
+      updateProgress();
     });
   } else {
     showMessage('No more tasks available. You have reached the end of the queue.', 'info');
@@ -857,6 +1000,19 @@ async function jumpToSample(sampleId) {
     console.error('Error jumping to sample:', error);
     showMessage('サンプルへのジャンプに失敗しました。', 'danger');
     showLoading(false);
+  }
+}
+
+/**
+ * Show completion indicator at the top of the page
+ * This function is now empty as the user found the indicator too noisy
+ */
+function showCompletionIndicator() {
+  // Function intentionally left empty - no completion indicator will be shown
+  // Remove any existing indicator
+  const existingIndicator = document.getElementById('completion-indicator');
+  if (existingIndicator) {
+    existingIndicator.remove();
   }
 }
 

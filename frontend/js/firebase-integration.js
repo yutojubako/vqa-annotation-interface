@@ -409,6 +409,38 @@ function generateQuestionId(question) {
 }
 
 /**
+ * Format tasks from data
+ * @param {Array} data - Raw data from JSON file
+ * @param {number} limit - Maximum number of tasks to format
+ * @returns {Array} Formatted tasks
+ */
+function formatTasksFromData(data, limit = null) {
+  console.log(`Formatting ${data.length} tasks from data`);
+  
+  // Apply limit if specified
+  const limitedData = limit ? data.slice(0, limit) : data;
+  
+  // Format tasks for the UI
+  const formattedTasks = limitedData.map(item => {
+    try {
+      return {
+        imageId: item.url,
+        imageUrl: item.url,
+        caption: item.context,
+        questions: formatQuestions(item)
+      };
+    } catch (itemError) {
+      console.error('Error formatting task:', itemError, item);
+      return null;
+    }
+  }).filter(task => task !== null); // Remove any null tasks
+  
+  console.log(`Formatted ${formattedTasks.length} tasks successfully`);
+  
+  return formattedTasks;
+}
+
+/**
  * Load annotation tasks
  * @param {number} limit - Maximum number of tasks to load (optional)
  * @returns {Promise<Array>} Array of annotation tasks
@@ -436,7 +468,38 @@ async function loadTasks(limit = null) {
     const response = await fetch('assets/captions_v2_fixed.json');
     
     if (!response.ok) {
-      throw new Error('Failed to load sample data');
+      console.error('Failed to load captions_v2_fixed.json, trying captions_v1.json...');
+      // Try to load from captions_v1.json as fallback
+      const fallbackResponse = await fetch('assets/captions_v1.json');
+      if (!fallbackResponse.ok) {
+        throw new Error('Failed to load sample data from both captions_v2_fixed.json and captions_v1.json');
+      }
+      
+      // Read the fallback response as text
+      const fallbackText = await fallbackResponse.text();
+      
+      // Try to parse the JSON
+      try {
+        const fallbackData = JSON.parse(fallbackText);
+        console.log(`Loaded ${fallbackData.length} tasks from captions_v1.json`);
+        
+        // Format tasks for the UI
+        const formattedTasks = formatTasksFromData(fallbackData, limit);
+        
+        // Store the formatted tasks in localStorage for future use
+        try {
+          localStorage.setItem('cached_tasks', JSON.stringify(formattedTasks));
+          console.log('Tasks cached in localStorage');
+        } catch (cacheError) {
+          console.error('Error caching tasks in localStorage:', cacheError);
+          // Continue even if caching fails
+        }
+        
+        return formattedTasks;
+      } catch (fallbackParseError) {
+        console.error('Error parsing fallback JSON:', fallbackParseError);
+        throw new Error('Invalid JSON format in captions_v1.json');
+      }
     }
     
     // Read the response as text first
@@ -909,11 +972,35 @@ async function getProgress() {
     // Get total tasks from sample data first
     let total = 0;
     try {
-      const response = await fetch('assets/captions_v2_fixed.json');
-      if (response.ok) {
-        const data = await response.json();
-        total = data.length;
-        console.log(`Total tasks from sample data: ${total}`);
+      // First try to get the total from cached_tasks in localStorage
+      const cachedTasks = localStorage.getItem('cached_tasks');
+      if (cachedTasks) {
+        try {
+          const tasks = JSON.parse(cachedTasks);
+          total = tasks.length;
+          console.log(`Total tasks from cached_tasks: ${total}`);
+        } catch (parseError) {
+          console.error('Error parsing cached tasks:', parseError);
+        }
+      }
+      
+      // If we still don't have a total, try to load from captions_v2_fixed.json
+      if (total === 0) {
+        const response = await fetch('assets/captions_v2_fixed.json');
+        if (response.ok) {
+          const data = await response.json();
+          total = data.length;
+          console.log(`Total tasks from captions_v2_fixed.json: ${total}`);
+        } else {
+          console.error('Failed to load captions_v2_fixed.json, trying captions_v1.json...');
+          // Try to load from captions_v1.json as fallback
+          const fallbackResponse = await fetch('assets/captions_v1.json');
+          if (fallbackResponse.ok) {
+            const fallbackData = await fallbackResponse.json();
+            total = fallbackData.length;
+            console.log(`Total tasks from captions_v1.json: ${total}`);
+          }
+        }
       }
     } catch (e) {
       console.error('Error loading sample data for progress:', e);
