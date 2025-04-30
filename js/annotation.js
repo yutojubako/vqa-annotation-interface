@@ -89,6 +89,9 @@ async function loadTask(index) {
     // Initialize panorama viewer
     initPanorama(task.imageUrl);
     
+    // Debug: Log task questions to check if suggestedAnswer is present
+    console.log('Task questions:', task.questions);
+    
     // Generate question tabs and forms
     generateQuestionTabs(task.questions);
     
@@ -239,8 +242,34 @@ function generateQuestionTabs(questions) {
       answerInput.dataset.question = question.question;
       answerInput.dataset.attribute = question.attribute;
       
+      // Set initial value from suggestedAnswer if available
+      if (question.suggestedAnswer) {
+        answerInput.value = question.suggestedAnswer;
+        answerInput.classList.add('suggested-answer');
+        
+        // Add a note below the textarea
+        const noteDiv = document.createElement('div');
+        noteDiv.className = 'suggested-answer-note';
+        noteDiv.textContent = '※参考回答が表示されています。必要に応じて編集してください。';
+        
+        // Store the note div for later use
+        answerInput.dataset.noteDiv = true;
+      }
+      
       // Add event listener for auto-save
       answerInput.addEventListener('input', () => {
+        // Remove suggested-answer class when user starts typing
+        answerInput.classList.remove('suggested-answer');
+        
+        // Remove note if it exists
+        if (answerInput.dataset.noteDiv) {
+          const noteDiv = answerInput.nextSibling;
+          if (noteDiv && noteDiv.className === 'suggested-answer-note') {
+            noteDiv.parentNode.removeChild(noteDiv);
+          }
+          delete answerInput.dataset.noteDiv;
+        }
+        
         updateAnswer(question.id, questionText.textContent, question.attribute, answerInput.value);
         scheduleAutoSave();
       });
