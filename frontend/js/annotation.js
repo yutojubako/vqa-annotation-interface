@@ -48,6 +48,9 @@ async function initAnnotation() {
     // Initialize segmented progress bar
     initializeProgressBar(currentTasks.length);
     
+    // Initialize save status to empty
+    document.getElementById('save-status').textContent = '';
+    
     // Hide loading state
     showLoading(false);
   } catch (error) {
@@ -99,6 +102,9 @@ async function loadTask(index) {
     const savedAnnotation = await getAnnotation(task.imageId);
     if (savedAnnotation) {
       loadSavedAnswers(savedAnnotation);
+    } else {
+      // Reset save status if no saved annotation
+      document.getElementById('save-status').textContent = '';
     }
     
     // Hide loading state
