@@ -455,8 +455,8 @@ async function loadTasks(limit = null) {
     // Get all tasks without filtering completed ones
     const allTasks = data;
     
-    // Apply limit only if specified, otherwise load only first 100 tasks by default
-    const limitedTasks = limit ? allTasks.slice(0, limit) : allTasks.slice(0, 100);
+    // Apply limit only if specified, otherwise load all tasks
+    const limitedTasks = limit ? allTasks.slice(0, limit) : allTasks;
     
     // Format tasks for the UI
     const formattedTasks = limitedTasks.map(item => {
@@ -760,12 +760,8 @@ async function saveAnnotation(annotation) {
           console.log('Verified annotation was saved successfully to Firebase');
           console.log('isComplete flag in saved data:', savedData.isComplete);
           
-          // Show success message to user
-          if (annotation.isComplete) {
-            showMessage('アノテーションが完了し、Firebaseに保存されました！', 'success');
-          } else {
-            showMessage('アノテーションがFirebaseに保存されました', 'success');
-          }
+          // Don't show success message to user anymore - it's distracting
+          // Status will be shown in the save-status element instead
         } else {
           throw new Error('Document does not exist after save');
         }
