@@ -26,7 +26,7 @@
         <div class="navbar-nav ms-auto">
           <span class="nav-item nav-link" id="current-index">現在：0/0</span>
           <span class="nav-item nav-link" id="username-display"></span>
-          <a class="nav-link" href="#" id="logout-btn">Logout</a>
+          <a class="nav-link" href="#" id="logout-btn" onclick="handleLogout()">Logout</a>
         </div>
       </div>
     </nav>
@@ -97,7 +97,7 @@
           <h5 class="modal-title">Login Required</h5>
         </div>
         <div class="modal-body">
-          <form id="login-form">
+          <form id="login-form" onsubmit="handleLogin(event)">
             <div class="mb-3">
               <label for="username" class="form-label">Username</label>
               <input type="text" class="form-control" id="username" required>
@@ -128,6 +128,16 @@
   <!-- Application scripts -->
   <!-- <script src="js/auth.js"></script> -->
   <!-- We're using firebase-integration.js instead of api.js -->
+  <script>
+    // Initialize Firebase authentication on page load
+    document.addEventListener('DOMContentLoaded', () => {
+      if (typeof initFirebaseAuth === 'function') {
+        initFirebaseAuth();
+      } else {
+        console.error('initFirebaseAuth function not found');
+      }
+    });
+  </script>
   <script src="js/annotation.js"></script>
 </body>
 </html>
