@@ -518,8 +518,14 @@ async function loadTasks(limit = null) {
     // Get all tasks without filtering completed ones
     const allTasks = data;
     
+    // Log the total number of tasks
+    console.log(`Total number of tasks in data: ${allTasks.length}`);
+    
     // Apply limit only if specified, otherwise load all tasks
+    // Note: We're intentionally NOT limiting the tasks here to ensure all samples are loaded
     const limitedTasks = limit ? allTasks.slice(0, limit) : allTasks;
+    
+    console.log(`Number of tasks after applying limit: ${limitedTasks.length}`);
     
     // Format tasks for the UI
     const formattedTasks = limitedTasks.map(item => {
